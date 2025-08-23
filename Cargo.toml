@@ -6,10 +6,10 @@ edition = "2021"
 
 [dependencies]
 dioxus = { version = "0.7.0-rc.0", features = ["router"] }
-dioxus-native = { version = "0.7.0-rc.0" }
-tokio = { version = "1", features = ["full"] }
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "macros"] }
-async-openai = "0.29.1"
+# dioxus-native = { version = "0.7.0-rc.0" }
+# tokio = { version = "1", features = ["full"] }
+# sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "macros"] }
+# async-openai = "0.29.1"
 
 [features]
 default = ["desktop"]

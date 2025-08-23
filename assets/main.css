@@ -1,15 +1,32 @@
 /* App-wide styling */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
 body {
     background-color: #0f1116;
     color: #ffffff;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    margin: 20px;
+    height: calc(100% - 2px);
+    width: calc(100% - 2px);
+    display: flex;
+    flex-direction: column;
+}
+
+#main {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Navbar */
 #navbar {
+    flex-grow: 0;
     display: flex;
     flex-direction: row;
+    border-bottom: 1px solid silver;
 }
 
 #navbar a {
@@ -22,4 +39,36 @@ body {
 #navbar a:hover {
     cursor: pointer;
     color: #91a4d2;
+}
+
+.content {
+    flex-grow: 1;
+    border: 1px solid blue;
+}
+
+.message {
+    padding: 1em;
+    border: 1px solid silver;
+    border-radius: 1em;
+    margin: 1em;
+}
+
+.system-message {
+    color: #91a4d2;
+}
+
+.ai-message {
+    margin-right: 20%;
+    color: bisque;
+}
+
+.tool-message {
+    /* margin-right: 3em;
+    margin-left: 3em; */
+    color: #91a4d2;
+}
+
+.human-message {
+    margin-left: 20%;
+    color: aqua;
 }

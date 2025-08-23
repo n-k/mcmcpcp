@@ -1,5 +1,8 @@
 use dioxus::prelude::*;
 
+mod home;
+use home::Home;
+
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
@@ -45,13 +48,6 @@ fn Navbar() -> Element {
         }
 
         Outlet::<Route> {}
-    }
-}
-
-#[component]
-fn Home() -> Element {
-    rsx! {
-        "Home"
     }
 }
 
