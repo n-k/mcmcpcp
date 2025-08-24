@@ -6,8 +6,6 @@ html, body {
 }
 
 body {
-    background-color: #0f1116;
-    color: #ffffff;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     height: calc(100% - 2px);
     width: calc(100% - 2px);
@@ -17,6 +15,9 @@ body {
 
 #main {
     height: 100%;
+    max-width: 70em;
+    width: 100%;
+    margin: 0 auto;
     display: flex;
     flex-direction: column;
 }
@@ -30,7 +31,6 @@ body {
 }
 
 #navbar a {
-    color: #ffffff;
     margin-right: 20px;
     text-decoration: none;
     transition: color 0.2s ease;
@@ -44,6 +44,8 @@ body {
 .content {
     flex-grow: 1;
     border: 1px solid blue;
+    display: flex;
+    flex-direction: column;
 }
 
 .message {
@@ -59,16 +61,16 @@ body {
 
 .ai-message {
     margin-right: 20%;
-    color: bisque;
+    /* color: bisque; */
 }
 
 .tool-message {
     /* margin-right: 3em;
     margin-left: 3em; */
-    color: #91a4d2;
+    /* color: #91a4d2; */
 }
 
 .human-message {
     margin-left: 20%;
-    color: aqua;
+    /* color: aqua; */
 }

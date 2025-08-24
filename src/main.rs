@@ -3,11 +3,26 @@ use dioxus::prelude::*;
 mod home;
 use home::Home;
 
+mod settings;
+
+mod markdown;
+
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
+pub static SETTINGS: GlobalSignal<AppSettings> = Signal::global(|| AppSettings {
+    api_url: "".to_string(),
+    api_key: None,
+});
+
 fn main() {
     dioxus::launch(App);
+}
+
+#[derive(Clone)]
+pub struct AppSettings {
+    pub api_url: String,
+    pub api_key: Option<String>,
 }
 
 #[component]
