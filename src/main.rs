@@ -1,28 +1,18 @@
 use dioxus::prelude::*;
 
 mod home;
-use home::Home;
-
 mod settings;
+mod md2rsx;
 
-mod markdown;
+use home::Home;
+use settings::Settings;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
-pub static SETTINGS: GlobalSignal<AppSettings> = Signal::global(|| AppSettings {
-    api_url: "".to_string(),
-    api_key: None,
-});
-
 fn main() {
+    // dioxus_native::launch(App);
     dioxus::launch(App);
-}
-
-#[derive(Clone)]
-pub struct AppSettings {
-    pub api_url: String,
-    pub api_key: Option<String>,
 }
 
 #[component]
@@ -37,7 +27,7 @@ fn App() -> Element {
 #[derive(Debug, Clone, Routable, PartialEq)]
 #[rustfmt::skip]
 enum Route {
-    #[layout(Navbar)]
+    #[layout(Layout)]
     #[route("/")]
     Home {},
     #[route("/settings")]
@@ -46,30 +36,11 @@ enum Route {
     PageNotFound { segments: Vec<String> },
 }
 
-/// Shared navbar component.
+/// Shared layout component.
 #[component]
-fn Navbar() -> Element {
+fn Layout() -> Element {
     rsx! {
-        div {
-            id: "navbar",
-            Link {
-                to: Route::Home {},
-                "Home"
-            }
-            Link {
-                to: Route::Settings {},
-                "Settings"
-            }
-        }
-
         Outlet::<Route> {}
-    }
-}
-
-#[component]
-fn Settings() -> Element {
-    rsx! {
-        "Settings"
     }
 }
 

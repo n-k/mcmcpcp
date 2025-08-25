@@ -5,16 +5,13 @@ use async_openai::{
     },
     Client,
 };
-use dioxus::{logger::tracing::info, prelude::*};
+use dioxus::{logger::tracing::{info, warn}, prelude::*};
 use futures::StreamExt;
-use pulldown_cmark::Parser;
-
-use crate::markdown::StreamMdToHtml;
 
 #[component]
 pub fn Home() -> Element {
     let client = use_resource(|| async {
-        let api_base = "http://192.168.29.3:1234/v1";
+        let api_base = "http://192.168.29.3:11434/v1";
         // Required but ignored
         let api_key = "ollama";
 
@@ -30,7 +27,7 @@ pub fn Home() -> Element {
     let mut chat = use_signal(|| Vec::<ChatCompletionRequestMessage>::new());
     let send_msg = move |s: String| async move {
         if let Some(client) = client() {
-            let model = "llama3.2:1b";
+            let model = "qwen3-coder:30b";
             let mut chat_request = { chat.cloned() };
             chat_request.push(
                 ChatCompletionRequestUserMessageArgs::default()
@@ -48,7 +45,6 @@ pub fn Home() -> Element {
             // let response = client.chat().create(request).await?;
             let mut stream = client.chat().create_stream(request).await?;
             let mut text = "".to_string();
-            let mut streamer = StreamMdToHtml::new(vec![]);
             let mut tool_calls = vec![];
             while let Some(result) = stream.next().await {
                 match result {
@@ -56,19 +52,8 @@ pub fn Home() -> Element {
                         let Some(choice) = r.choices.first() else {continue};
                         let delta = &choice.delta;
                         if let Some(t) = &delta.content {
-                            // info!("{}", t);
                             text = format!("{}{}", &text, t);
-                            let mut lines: Vec<_> = text.lines().collect();
-                            let remaining = if lines.len() > 1 {
-                                lines.remove(lines.len() - 1).to_string()
-                            } else {
-                                "".to_string()
-                            };
-                            for l in lines {
-                                streamer.handle_line(l.to_string()).await?;
-                            }
-                            text = remaining;
-                            streaming_msg.set(Some(String::from_utf8_lossy(&streamer.out).into()));
+                            streaming_msg.set(Some(text.clone()));
                         }
                         if let Some(tools) = &delta.tool_calls {
                             info!("{:?}", tools);
@@ -76,7 +61,7 @@ pub fn Home() -> Element {
                         }
                     },
                     Err(e) => {
-                        eprintln!("{}", e);
+                        warn!("{}", e);
                     }
                 }
             }
@@ -104,7 +89,7 @@ pub fn Home() -> Element {
     let stream_output: Option<Element> = streaming_msg().map(move |m| rsx! {
         div {
             class: "message ai-message",
-            dangerous_inner_html: m,
+            {crate::md2rsx::markdown_to_rsx(&m)}
         }
     });
 
@@ -112,12 +97,13 @@ pub fn Home() -> Element {
         div {
             class: "content",
             div {
-                style: "flex-grow: 1",
+                style: "flex-grow: 1; overflow: auto;",
                 for c in chat.iter() {
                     Message {msg: (*c).clone()}
                 }
+                {stream_output}
             }
-            {stream_output}
+            
             div {
                 style: "flex-grow: 0",
                 InputBox {on_send: Callback::new(move |s: String| async move {
@@ -198,10 +184,7 @@ fn Message(msg: ChatCompletionRequestMessage) -> Element {
                 },
                 None => "".to_string(),
             };
-            let parser = Parser::new(&s);
-            let mut html_output = String::new();
-            pulldown_cmark::html::push_html(&mut html_output, parser);
-            ("message ai-message", html_output)
+            ("message ai-message", s)
         },
         ChatCompletionRequestMessage::Tool(m) => {
             let s = match m.content {
@@ -222,17 +205,18 @@ fn Message(msg: ChatCompletionRequestMessage) -> Element {
             ("message tool-message", s)
         },
     };
+    let el = crate::md2rsx::markdown_to_rsx(&content)?;
     rsx! {
         div {
             class: class,
-            dangerous_inner_html: content,
+            {el}
         }
     }
 }
 
 #[component]
 fn InputBox(on_send: Callback<String, ()>) -> Element {
-    let mut text = use_signal(|| "".to_string());
+    let mut text = use_signal(|| "write a rust program to write a python program".to_string());
     let set_text = move |e: Event<FormData>| {
         text.set(e.value());
     };
@@ -240,13 +224,19 @@ fn InputBox(on_send: Callback<String, ()>) -> Element {
         on_send(text.cloned());
         text.set("".to_string());
     };
+    let nav = navigator();
     rsx! {
         div {
             style: "
             display: flex;
             flex-direction: row;
-            padding: 1em;
             ",
+            button {
+                onclick: move |_e: Event<MouseData>| {
+                    nav.replace(crate::Route::Settings {});
+                },
+                "⛭"
+            }
             textarea {
                 style: "flex-grow: 1",
                 oninput: set_text,
