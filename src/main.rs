@@ -1,8 +1,10 @@
 use dioxus::prelude::*;
 
+mod box_select;
 mod home;
 mod settings;
 mod md2rsx;
+mod message;
 
 use home::Home;
 use settings::Settings;
@@ -48,9 +50,6 @@ fn Layout() -> Element {
 fn PageNotFound(segments: Vec<String>) -> Element {
     rsx! {
         "Could not find the page you are looking for."
-        Link {
-            to: Route::Home {},
-            "Go To Home"
-        }
+        Link { to: Route::Home {}, "Go To Home" }
     }
 }

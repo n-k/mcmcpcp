@@ -43,32 +43,26 @@ pre code {
     flex-direction: column;
 }
 
-/* Navbar */
-#navbar {
-    flex-grow: 0;
-    display: flex;
-    flex-direction: row;
-    border-top: 1px solid silver;
-    display: flex;
-    flex-direction: row;
-}
-
-#navbar a {
-    margin-right: 20px;
-    text-decoration: none;
-    transition: color 0.2s ease;
-}
-
-#navbar a:hover {
-    cursor: pointer;
-    color: #91a4d2;
-}
-
 .content {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.box-select {
+    width: 100%;
+    max-height: 10em;
+    overflow: auto;
+}
+
+.box-select .option {
+    width: 100%;
+    cursor: pointer;
+}
+
+.box-select .option.selected {
+    background-color: cadetblue;
 }
 
 .message {
@@ -84,16 +78,12 @@ pre code {
 
 .ai-message {
     margin-right: 20%;
-    /* color: bisque; */
 }
 
 .tool-message {
-    /* margin-right: 3em;
-    margin-left: 3em; */
-    /* color: #91a4d2; */
+    color: bisque;
 }
 
 .human-message {
     margin-left: 20%;
-    /* color: aqua; */
 }

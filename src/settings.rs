@@ -1,20 +1,19 @@
 use async_openai::{config::OpenAIConfig, Client};
 use dioxus::prelude::*;
-use dioxus_primitives::select::{
-    SelectValue, Select, SelectList, SelectOption, SelectTrigger
-};
+
+use crate::box_select::BoxSelect;
 
 pub static SETTINGS: GlobalSignal<AppSettings> = Signal::global(|| AppSettings {
     api_url: "http://192.168.29.3:11434/v1".to_string(),
     api_key: "dummy".to_string(),
-    model: "qwen3-coder:30b".to_string(),
+    model: None,
 });
 
 #[derive(Clone)]
 pub struct AppSettings {
     pub api_url: String,
     pub api_key: String,
-    pub model: String,
+    pub model: Option<String>,
 }
 
 #[allow(non_snake_case)]
@@ -22,6 +21,8 @@ pub struct AppSettings {
 pub fn Settings() -> Element {
     let settings = use_signal(|| SETTINGS());
     let mut model = use_signal(|| settings().model);
+    let mut api_url = use_signal(|| settings().api_url);
+    let mut api_key = use_signal(|| settings().api_key);
     let mut available_models = use_signal(|| Vec::<String>::new());
     let handle_url_change = move |e: Event<FormData>| {
         let current_settings = SETTINGS();
@@ -30,6 +31,7 @@ pub fn Settings() -> Element {
             ..current_settings
         };
         *SETTINGS.write() = s;
+        api_url.set(e.value());
     };
     let handle_key_change = move |e: Event<FormData>| {
         let current_settings = SETTINGS();
@@ -38,15 +40,16 @@ pub fn Settings() -> Element {
             ..current_settings
         };
         *SETTINGS.write() = s;
+        api_key.set(e.value());
     };
     let mut set_model = move |v: Option<String>| {
         let current_settings = SETTINGS();
         let s = AppSettings {
-            model: v.clone().unwrap_or_else(|| "".to_string()),
+            model: v.clone(),
             ..current_settings
         };
         *SETTINGS.write() = s;
-        model.set(v.unwrap_or_else(|| "".to_string()));
+        model.set(v);
     };
     let get_available_models = move || async move {
         let s = settings();
@@ -69,110 +72,52 @@ pub fn Settings() -> Element {
             }
         }
     };
-    let nav = navigator();
-
-    let model_options = available_models().into_iter().enumerate().map(|(i, m)| {
-        rsx! {
-            SelectOption::<String> {
-                index: i,
-                class: "select-option",
-                value: m.clone(),
-                text_value: "{m}",
-                {m}
-            }
-        }
-    });
 
     rsx! {
-        div {
-            class: "content",
-            div {
-                style: "
+        div { class: "content", style: "padding: 1em;",
+            div { style: "
                 flex-grow: 0;
                 display: flex;
                 flex-direction: row;
                 margin-top: 1em;
+                justify-content: space-between;
                 ",
-                h2 {
-                    "Settings"
-                }
-                button {
-                    onclick: move |_e: Event<MouseData>| {
-                        nav.replace(crate::Route::Home {});
-                    },
-                    "Cancel"
-                }
-                button {
-                    onclick: move |_e: Event<MouseData>| {
-                        *SETTINGS.write() = settings();
-                    },
-                    "Save"
+                h3 { "Settings" }
+                div { style: "
+                    align-self: center;
+
+                    ",
+                    Link { to: crate::Route::Home {}, "Back" }
                 }
             }
-            div {
-                style: "
+            div { style: "
                 flex-grow: 1;
                 overflow: auto;
                 display: flex;
                 flex-direction: column;
                 ",
-                label {
-                    style: "margin-top: 1em;",
-                    "API endpoint"
-                }
-                input {
-                    value: settings().api_url,
-                    oninput: handle_url_change,
-                }
-                label {
-                    style: "margin-top: 1em;",
-                    "API Key"
-                }
-                input {
-                    value: settings().api_key,
-                    oninput: handle_key_change,
-                }
-                label {
-                    style: "margin-top: 1em;",
-                    "Select Model"
-                }
-                div {
-                    style: "
+                label { style: "margin-top: 1em;", "API endpoint" }
+                input { value: api_url(), oninput: handle_url_change }
+                label { style: "margin-top: 1em;", "API Key" }
+                input { value: api_key(), oninput: handle_key_change }
+                label { style: "margin-top: 1em;", "Select Model" }
+                div { style: "
                     display: flex;
                     flex-direction: row;
                     ",
-                    Select::<String> {
-                        class: "select",
-                        style: "flex-grow: 1; width: 100%;",
-                        value: Some(model()),
-                        on_value_change: move |e: Option<String>| {
-                            set_model(e);
+                    BoxSelect {
+                        value: model(),
+                        options: available_models(),
+                        on_select: move |v| {
+                            set_model(v);
                         },
-                        placeholder: if model().is_empty() {"Select Model"} else {model()},
-                        SelectTrigger {
-                            width: "100%",
-                            height: "2em",
-                            SelectValue {}
-                        }
-                        SelectList {
-                            SelectOption::<String> {
-                                index: 0usize,
-                                class: "select-option",
-                                value: model(),
-                                text_value: model(),
-                                SelectValue {}
-                            }
-                            {model_options}
-                        }
                     }
                     button {
+                        style: "max-height: 2em;",
                         onclick: refresh_model_list,
                         "⟳"
                     }
                 }
-            }
-            div {
-                {model}
             }
         }
     }

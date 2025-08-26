@@ -7,8 +7,8 @@ edition = "2021"
 [dependencies]
 dioxus = { version = "0.7.0-rc.0", features = ["router"] }
 dioxus-native = { version = "0.7.0-rc.0" }
-dioxus-primitives = { git = "https://github.com/DioxusLabs/components", version = "0.0.1" }
 # TODO: include when DX 0.7.0 is out
+# dioxus-primitives = { git = "https://github.com/DioxusLabs/components", version = "0.0.1" }
 # dioxus-free-icons = { version = "0.9", features = ["font-awesome-brands"] }
 tokio = { version = "1", features = ["full"] }
 serde = {version = "1" , features=["derive"]}
