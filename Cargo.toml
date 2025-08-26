@@ -18,6 +18,9 @@ async-openai = "0.29"
 anyhow = "1"
 futures = "0.3"
 pulldown-cmark = "0.13"
+parking_lot = "0.12"
+uuid = { version = "1", features = ["v4"] }
+
 
 [features]
 default = ["desktop"]

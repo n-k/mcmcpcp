@@ -3,6 +3,7 @@ use dioxus::prelude::*;
 mod box_select;
 mod home;
 mod settings;
+mod mcp;
 mod md2rsx;
 mod message;
 
