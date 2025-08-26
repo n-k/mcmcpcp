@@ -1,3 +1,7 @@
+[bundle]
+identifier = "io.github.n-k"
+publisher = "n-k"
+
 [application]
 
 [web.app]

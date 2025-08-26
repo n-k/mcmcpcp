@@ -1,5 +1,8 @@
 use async_openai::{config::OpenAIConfig, Client};
 use dioxus::prelude::*;
+use dioxus_primitives::select::{
+    SelectValue, Select, SelectList, SelectOption, SelectTrigger
+};
 
 pub static SETTINGS: GlobalSignal<AppSettings> = Signal::global(|| AppSettings {
     api_url: "http://192.168.29.3:11434/v1".to_string(),
@@ -17,7 +20,8 @@ pub struct AppSettings {
 #[allow(non_snake_case)]
 #[component]
 pub fn Settings() -> Element {
-    let settings = use_signal(|| { SETTINGS() });
+    let settings = use_signal(|| SETTINGS());
+    let mut model = use_signal(|| settings().model);
     let mut available_models = use_signal(|| Vec::<String>::new());
     let handle_url_change = move |e: Event<FormData>| {
         let current_settings = SETTINGS();
@@ -35,6 +39,15 @@ pub fn Settings() -> Element {
         };
         *SETTINGS.write() = s;
     };
+    let mut set_model = move |v: Option<String>| {
+        let current_settings = SETTINGS();
+        let s = AppSettings {
+            model: v.clone().unwrap_or_else(|| "".to_string()),
+            ..current_settings
+        };
+        *SETTINGS.write() = s;
+        model.set(v.unwrap_or_else(|| "".to_string()));
+    };
     let get_available_models = move || async move {
         let s = settings();
         let client = Client::with_config(
@@ -50,68 +63,39 @@ pub fn Settings() -> Element {
         match get_available_models().await {
             Ok(models) => {
                 available_models.set(models);
-            },
+            }
             Err(e) => {
                 eprintln!("{e}");
             }
         }
     };
     let nav = navigator();
+
+    let model_options = available_models().into_iter().enumerate().map(|(i, m)| {
+        rsx! {
+            SelectOption::<String> {
+                index: i,
+                class: "select-option",
+                value: m.clone(),
+                text_value: "{m}",
+                {m}
+            }
+        }
+    });
+
     rsx! {
         div {
             class: "content",
             div {
                 style: "
-                flex-grow: 1;
-                overflow: auto;
-                display: flex;
-                flex-direction: column;
-                ",
-                label {"API endpoint"}
-                input {
-                    value: settings().api_url,
-                    oninput: handle_url_change,
-                }
-                label {"API Key"}
-                input {
-                    value: settings().api_key,
-                    oninput: handle_key_change,
-                }
-                label {"Select Model"}
-                div {
-                    style: "
-                    display: flex;
-                    flex-direction: row;
-                    ",
-                    select {
-                        style: "flex-grow: 1",
-                        value: settings().model,
-                        option {
-                            value: "",
-                            "-- Select --"
-                        }
-                        for m in available_models().iter() {
-                            option {
-                                key: "{m}",
-                                value: "{m}",
-                                "{m}"
-                            }
-                        }
-                    }
-                    button {
-                        onclick: refresh_model_list,
-                        "⟳"
-                    }
-                }
-            }
-            div {
-                style: "
                 flex-grow: 0;
                 display: flex;
                 flex-direction: row;
-                align-self: end;
                 margin-top: 1em;
                 ",
+                h2 {
+                    "Settings"
+                }
                 button {
                     onclick: move |_e: Event<MouseData>| {
                         nav.replace(crate::Route::Home {});
@@ -124,6 +108,71 @@ pub fn Settings() -> Element {
                     },
                     "Save"
                 }
+            }
+            div {
+                style: "
+                flex-grow: 1;
+                overflow: auto;
+                display: flex;
+                flex-direction: column;
+                ",
+                label {
+                    style: "margin-top: 1em;",
+                    "API endpoint"
+                }
+                input {
+                    value: settings().api_url,
+                    oninput: handle_url_change,
+                }
+                label {
+                    style: "margin-top: 1em;",
+                    "API Key"
+                }
+                input {
+                    value: settings().api_key,
+                    oninput: handle_key_change,
+                }
+                label {
+                    style: "margin-top: 1em;",
+                    "Select Model"
+                }
+                div {
+                    style: "
+                    display: flex;
+                    flex-direction: row;
+                    ",
+                    Select::<String> {
+                        class: "select",
+                        style: "flex-grow: 1; width: 100%;",
+                        value: Some(model()),
+                        on_value_change: move |e: Option<String>| {
+                            set_model(e);
+                        },
+                        placeholder: if model().is_empty() {"Select Model"} else {model()},
+                        SelectTrigger {
+                            width: "100%",
+                            height: "2em",
+                            SelectValue {}
+                        }
+                        SelectList {
+                            SelectOption::<String> {
+                                index: 0usize,
+                                class: "select-option",
+                                value: model(),
+                                text_value: model(),
+                                SelectValue {}
+                            }
+                            {model_options}
+                        }
+                    }
+                    button {
+                        onclick: refresh_model_list,
+                        "⟳"
+                    }
+                }
+            }
+            div {
+                {model}
             }
         }
     }

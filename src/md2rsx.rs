@@ -26,7 +26,7 @@ pub fn markdown_to_rsx<'a>(md: &'a str) -> Element {
                         HeadingLevel::H5 => rsx! { h5 { {children} } },
                         _ => rsx! { h6 { {children} } },
                     },
-                    TagEnd::BlockQuote => rsx! { blockquote { {children} } },
+                    TagEnd::BlockQuote(_) => rsx! { blockquote { {children} } },
                     TagEnd::CodeBlock => {
                         rsx! { pre { code { {children} } } }
                     },
