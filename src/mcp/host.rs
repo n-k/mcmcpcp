@@ -2,14 +2,31 @@ use std::{collections::HashMap, time::Duration};
 use anyhow::Result;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::mcp::server::{McpServer, ServerSpec, Tool};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ToolDescriptor {
     pub server_id: String,
-    pub tool: Tool, // opaque; server-defined
+    pub tool: Tool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolResult {
+    pub content: Vec<ToolResultContent>,
+    pub is_error: Option<bool>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolResultContent {
+    pub r#type: String,
+    pub text: Option<String>,
+    pub mime_type: Option<String>,
+    pub data: Option<String>,
+    pub resource: Option<Value>,
 }
 
 pub struct Host {
@@ -44,10 +61,20 @@ impl Host {
         }).collect()
     }
 
-    #[allow(unused)]
     pub async fn invoke(&self, server_id: &str, method: &str, params: Value) -> Result<Value> {
         let servers = self.servers.read();
         let s = servers.get(server_id).ok_or_else(|| anyhow::anyhow!("unknown server {server_id}"))?;
         s.rpc_call(method, params).await
+    }
+
+    pub async fn tool_call(&self, server_id: &str, tool_name: &str, arguments: Value) -> Result<ToolResult> {
+        let servers = self.servers.read();
+        let s = servers.get(server_id).ok_or_else(|| anyhow::anyhow!("unknown server {server_id}"))?;
+        let params = json!({
+            "name": tool_name,
+            "arguments": arguments,
+        });
+        let result = s.rpc_call("tools/call", params).await?;
+        serde_json::from_value(result).map_err(|e| e.into())
     }
 }

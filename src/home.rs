@@ -12,8 +12,9 @@ use dioxus::{
     prelude::*,
 };
 use futures::StreamExt;
+use serde_json::{json, Value};
 
-use crate::{mcp::Host, message::Message};
+use crate::{mcp::{Host, ServerSpec}, message::Message};
 use crate::settings::SETTINGS;
 
 #[component]
@@ -81,10 +82,22 @@ pub fn Home() -> Element {
 
         let host = consume_context::<Arc<Host>>();
         let tools = host.list_tools();
+        if tools.len() == 0 {
+            let spec = ServerSpec {
+                id: "fetch".into(),
+                cmd: "npx".into(),
+                args: vec!["@tokenizin/mcp-npx-fetch".into()],
+            };
+            let res = host.add_server(spec).await;
+            if let Err(e) = res {
+                eprintln!("failed to start server {e}");
+            }
+        }
+        let tools = host.list_tools();
         // eprintln!("{tools:#?}");
         let tools: Vec<ChatCompletionTool> = tools.iter().map(move |t| {
             let t  = t.clone();
-            // eprintln!("{t:?}");
+            // eprintln!("==={t:?}===");
             ChatCompletionTool { 
                 r#type: async_openai::types::ChatCompletionToolType::Function, 
                 function: async_openai::types::FunctionObject { 
@@ -99,7 +112,7 @@ pub fn Home() -> Element {
             .max_tokens(2048u32)
             .model(model)
             .messages(chat_request.clone())
-            .tools(vec![tools[0].clone()])
+            .tools(tools)
             .build()?;
 
         // let req_json = serde_json::to_string(&request).unwrap();
@@ -150,6 +163,24 @@ pub fn Home() -> Element {
                 .unwrap_or_else(|| "")
                 .split("/")
                 .collect();
+            if parts.len() == 2 {
+                let server_id = parts[0];
+                let tool_name = parts[1];
+                let params_str = f.arguments
+                    .as_ref()
+                    .map(|s| s.as_str())
+                    .unwrap_or_else(|| "{}");
+                let arguments: Value = serde_json::from_str(params_str)?;
+                // let params = json!({
+                //     "name": tool_name,
+                //     "arguments": params,
+                // });
+                // let method = "tools/call";
+
+                eprintln!("Calling {server_id}/{tool_name}({arguments:?})");
+                let result = host.tool_call(server_id, tool_name, arguments).await?;
+                eprintln!("Result of tool call: {result:?}");
+            }
             // host.invoke(server_id, method, params)
             let tcm = ChatCompletionRequestToolMessageArgs::default()
                 .content(ChatCompletionRequestToolMessageContent::Text(format!(
