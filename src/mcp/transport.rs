@@ -12,7 +12,7 @@ pub enum InboundLine {
 
 pub struct StdioTransport {
     stdin: ChildStdin,
-    pub rx_lines: mpsc::UnboundedReceiver<InboundLine>,
+    pub rx_lines: Option<mpsc::UnboundedReceiver<InboundLine>>,
 }
 
 impl StdioTransport {
@@ -40,7 +40,7 @@ impl StdioTransport {
             }
         });
 
-        Self { stdin, rx_lines: rx }
+        Self { stdin, rx_lines: Some(rx) }
     }
 
     pub async fn send_json(&mut self, v: &Value) -> Result<()> {

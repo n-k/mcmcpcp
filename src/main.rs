@@ -1,3 +1,5 @@
+use std::{sync::Arc, time::Duration};
+
 use dioxus::prelude::*;
 
 mod box_select;
@@ -9,13 +11,36 @@ mod message;
 
 use home::Home;
 use settings::Settings;
+use mcp::{Host, ServerSpec};
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {
+    let host = Arc::new(Host::new(
+        Duration::from_millis(10_000),
+        Duration::from_millis(30_000),
+    ));
+
+    {
+        let spec = ServerSpec {
+            id: "fetch".into(),
+            cmd: "npx".into(),
+            args: vec!["@tokenizin/mcp-npx-fetch".into()],
+        };
+        let res = tokio::runtime::Runtime::new().unwrap().block_on(async {
+            host.add_server(spec).await
+        });
+        if let Err(e) = res {
+            eprintln!("failed to start server {e}");
+        }
+    }
+
     // dioxus_native::launch(App);
-    dioxus::launch(App);
+    // dioxus::launch(App);
+    LaunchBuilder::new()
+        .with_context(host)
+        .launch(App)
 }
 
 #[component]

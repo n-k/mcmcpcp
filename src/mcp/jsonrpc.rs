@@ -44,6 +44,7 @@ pub enum RpcMessage {
     Err(RpcError),
 }
 
+#[allow(unused)]
 pub fn req(method: &str, id: Value, params: Option<Value>) -> RpcRequest {
     RpcRequest {
         jsonrpc: "2.0".into(),

@@ -4,17 +4,19 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::mcp::server::{McpServer, ServerSpec};
+use crate::mcp::server::{McpServer, ServerSpec, Tool};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ToolDescriptor {
     pub server_id: String,
-    pub tool: Value, // opaque; server-defined
+    pub tool: Tool, // opaque; server-defined
 }
 
 pub struct Host {
     pub servers: RwLock<HashMap<String, McpServer>>,
+    #[allow(unused)]
     pub request_timeout: Duration,
+    #[allow(unused)]
     pub startup_timeout: Duration,
 }
 
@@ -27,6 +29,7 @@ impl Host {
         }
     }
 
+    #[allow(unused)]
     pub async fn add_server(&self, spec: ServerSpec) -> Result<()> {
         let server = McpServer::spawn(spec.clone(), self.request_timeout, self.startup_timeout).await?;
         self.servers.write().insert(spec.id, server);
@@ -35,13 +38,13 @@ impl Host {
 
     pub fn list_tools(&self) -> Vec<ToolDescriptor> {
         self.servers.read().iter().flat_map(|(id, s)| {
-            s.tool_cache.lock().iter().cloned().map(move |t| ToolDescriptor {
-                server_id: id.clone(),
-                tool: t,
-            })
+            let id = id.clone();
+            let tools = s.tool_cache.lock().clone();
+            tools.into_iter().map(move |t| ToolDescriptor { server_id: id.clone(), tool: t })
         }).collect()
     }
 
+    #[allow(unused)]
     pub async fn invoke(&self, server_id: &str, method: &str, params: Value) -> Result<Value> {
         let servers = self.servers.read();
         let s = servers.get(server_id).ok_or_else(|| anyhow::anyhow!("unknown server {server_id}"))?;
