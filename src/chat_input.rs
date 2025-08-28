@@ -2,6 +2,9 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 
+const SEND_ICON: Asset = asset!("/assets/send.svg");
+const SETTINGS_ICON: Asset = asset!("/assets/settings.svg");
+
 #[component]
 pub fn ChatInput(disabled: bool, on_send: Callback<String, ()>) -> Element {
     let mut text = use_signal(|| "fetch markdown and summarize front page of hackernews".to_string());
@@ -32,10 +35,12 @@ pub fn ChatInput(disabled: bool, on_send: Callback<String, ()>) -> Element {
                 onclick: move |_e: Event<MouseData>| {
                     nav.replace(crate::Route::Settings {});
                 },
-                "⛭"
+                img {
+                    src: SETTINGS_ICON,
+                }
             }
             textarea {
-                style: "flex-grow: 1",
+                style: "flex-grow: 1; max-height: 10em; height: 4em;",
                 disabled,
                 oninput: set_text,
                 onkeypress: move |e: Event<KeyboardData>| {
@@ -48,7 +53,13 @@ pub fn ChatInput(disabled: bool, on_send: Callback<String, ()>) -> Element {
                 },
                 value: text,
             }
-            button { onclick: send, disabled, "🖅" }
+            button { 
+                onclick: send, 
+                disabled, 
+                img {
+                    src: SEND_ICON,
+                }
+            }
         }
     }
 }

@@ -18,7 +18,7 @@ use mcp::{Host};
 
 use crate::mcp::ServerSpec;
 
-const FAVICON: Asset = asset!("/assets/favicon.ico");
+const FAVICON: Asset = asset!("/assets/favicon.svg");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {
