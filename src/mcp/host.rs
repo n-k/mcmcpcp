@@ -61,6 +61,7 @@ impl Host {
         }).collect()
     }
 
+    #[allow(unused)]
     pub async fn invoke(&self, server_id: &str, method: &str, params: Value) -> Result<Value> {
         let servers = self.servers.read();
         let s = servers.get(server_id).ok_or_else(|| anyhow::anyhow!("unknown server {server_id}"))?;

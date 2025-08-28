@@ -6,4 +6,5 @@ mod server;
 mod transport;
 
 pub use host::Host;
+pub use host::ToolDescriptor;
 pub use server::ServerSpec;

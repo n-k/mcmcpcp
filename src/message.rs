@@ -5,16 +5,18 @@ use async_openai::{
     },
 };
 
+use crate::collapsible::Collapsible;
+
 #[component]
 pub fn Message(msg: ChatCompletionRequestMessage) -> Element {
-    let (class, content) = match msg {
+    let (class, collapsed, content) = match msg {
         ChatCompletionRequestMessage::Developer(m) => {
             let s = match m.content {
                 async_openai::types::ChatCompletionRequestDeveloperMessageContent::Text(t) => t,
                 async_openai::types::ChatCompletionRequestDeveloperMessageContent::Array(a) => 
                     a.into_iter().map(|m| m.text).collect::<Vec<_>>().join("\n"),
             };
-            ("message system-message", s)
+            ("message system-message", true, s)
         },
         ChatCompletionRequestMessage::System(m) => {
             let s = match m.content {
@@ -24,7 +26,7 @@ pub fn Message(msg: ChatCompletionRequestMessage) -> Element {
                         async_openai::types::ChatCompletionRequestSystemMessageContentPart::Text(t) => t.text,
                     }).collect::<Vec<_>>().join("\n"),
             };
-            ("message system-message", s)
+            ("message system-message", true, s)
         },
         ChatCompletionRequestMessage::User(m) => {
             let s = match m.content {
@@ -36,7 +38,7 @@ pub fn Message(msg: ChatCompletionRequestMessage) -> Element {
                         async_openai::types::ChatCompletionRequestUserMessageContentPart::InputAudio(_) => "<Audio>".to_string(),
                     }).collect::<Vec<_>>().join("\n"),
             };
-            ("message human-message", s)
+            ("message human-message", false, s)
         },
         ChatCompletionRequestMessage::Assistant(m) => {
             let s = match m.content {
@@ -52,7 +54,7 @@ pub fn Message(msg: ChatCompletionRequestMessage) -> Element {
                 },
                 None => "".to_string(),
             };
-            ("message ai-message", s)
+            ("message ai-message", false, s)
         },
         ChatCompletionRequestMessage::Tool(m) => {
             let s = match m.content {
@@ -63,18 +65,23 @@ pub fn Message(msg: ChatCompletionRequestMessage) -> Element {
                     }
                 }).collect::<Vec<_>>().join("\n"),
             };
-            ("message tool-message", s)
+            ("message tool-message", true, s)
         },
         ChatCompletionRequestMessage::Function(m) => {
             let s = match m.content {
                 Some(v) => v,
                 None => "".to_string(),
             };
-            ("message tool-message", s)
+            ("message tool-message", true, s)
         },
     };
     let el = crate::md2rsx::markdown_to_rsx(&content)?;
     rsx! {
-        div { class, {el} }
+        div { class, 
+            Collapsible {
+                c: collapsed,
+                {el}   
+            } 
+        }
     }
 }
