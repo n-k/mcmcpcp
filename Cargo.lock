@@ -4071,6 +4071,7 @@ dependencies = [
  "html2md",
  "parking_lot",
  "pulldown-cmark",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",

@@ -11,16 +11,18 @@ dioxus-native = { version = "0.7.0-rc.0" }
 # dioxus-primitives = { git = "https://github.com/DioxusLabs/components", version = "0.0.1" }
 # dioxus-free-icons = { version = "0.9", features = ["font-awesome-brands"] }
 tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+parking_lot = "0.12"
+
 serde = {version = "1" , features=["derive"]}
 serde_json = "1"
 # sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "macros"] }
 async-openai = "0.29"
 anyhow = "1"
-futures = "0.3"
 pulldown-cmark = "0.13"
-parking_lot = "0.12"
 uuid = { version = "1", features = ["v4"] }
 html2md = "0.2"
+reqwest = "0.12"
 
 [features]
 default = ["desktop"]
