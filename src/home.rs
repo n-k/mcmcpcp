@@ -1,26 +1,17 @@
 use std::sync::Arc;
 
-use async_openai::{
-    config::OpenAIConfig,
-    types::{
-        ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
-        ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
-        ChatCompletionTool, CreateChatCompletionRequestArgs,
-    },
-    Client,
-};
 use dioxus::{
     logger::tracing::{info, warn},
     prelude::*,
 };
-use futures::StreamExt;
 
 use crate::{
     chat_input::ChatInput,
+    llm::{ContentPart, LlmClient, Message, Tool},
     settings::SETTINGS,
-    utils::{call_tools, tools_to_openai_objects},
+    utils::{call_tools, tools_to_message_objects},
 };
-use crate::{mcp::Host, message::Message};
+use crate::{mcp::Host, message::MessageEl};
 
 #[component]
 pub fn Home() -> Element {
@@ -29,12 +20,13 @@ pub fn Home() -> Element {
         let api_base = settings.api_url;
         let api_key = settings.api_key;
 
-        let client = Client::with_config(
-            OpenAIConfig::new()
-                .with_api_key(api_key)
-                .with_api_base(api_base),
-        );
-        client
+        // let client = Client::with_config(
+        //     OpenAIConfig::new()
+        //         .with_api_key(api_key)
+        //         .with_api_base(api_base),
+        // );
+        let lmc = LlmClient::new(api_base, api_key);
+        lmc
     });
     let model = use_resource(|| async {
         let settings = SETTINGS();
@@ -55,15 +47,12 @@ pub fn Home() -> Element {
         disabled
     });
     let mut streaming_msg: Signal<Option<String>> = use_signal(|| None);
-    let mut chat: Signal<Vec<ChatCompletionRequestMessage>> = use_signal(|| {
-        vec![ChatCompletionRequestSystemMessageArgs::default()
-            .content(
-                "You are a helpful assistant. 
-                You have access to tools which you can call to help the user in the user's task.",
-            )
-            .build()
-            .unwrap()
-            .into()]
+    let mut chat: Signal<Vec<Message>> = use_signal(|| {
+        vec![Message::System {
+            content: "You are a helpful assistant. 
+                You have access to tools which you can call to help the user in the user's task."
+                .into(),
+        }]
     });
     let mut tool_count_warning: Signal<bool> = use_signal(|| false);
 
@@ -75,60 +64,39 @@ pub fn Home() -> Element {
         let Some(client) = client() else {
             return Ok(());
         };
+        let host = consume_context::<Arc<Host>>();
+        let tools = host.list_tools().await;
+        let tools: Vec<Tool> = tools_to_message_objects(tools);
         let mut count = 0u8;
         loop {
-            let host = consume_context::<Arc<Host>>();
-            let tools = host.list_tools().await;
-            let tools: Vec<ChatCompletionTool> = tools_to_openai_objects(tools);
-            let request = CreateChatCompletionRequestArgs::default()
-                .max_tokens(2048u32)
-                .model(model.clone())
-                .messages(chat.cloned())
-                .tools(tools)
-                .build()?;
-
-            let mut stream = client.chat().create_stream(request).await?;
+            let mut stream = client.stream(&model, &chat.read(), &tools).await?;
             let mut text = "".to_string();
             let mut tool_calls = vec![];
-            while let Some(result) = stream.next().await {
-                match result {
-                    Ok(r) => {
-                        let Some(choice) = r.choices.first() else {
-                            continue;
-                        };
-                        let delta = &choice.delta;
-                        if let Some(t) = &delta.content {
-                            if !t.is_empty() {
-                                text = format!("{}{}", &text, t);
-                                streaming_msg.set(Some(text.clone()));
-                            }
-                        }
-                        if let Some(tools) = &delta.tool_calls {
-                            info!("{:?}", tools);
-                            tool_calls.extend_from_slice(tools);
-                        }
-                    }
-                    Err(e) => {
-                        warn!("{}", e);
+            while let Some(e) = stream.recv().await {
+                let Some(ch) = e.choices.first() else { break };
+                if let Some(t) = &ch.delta.content {
+                    if !t.is_empty() {
+                        text = format!("{}{}", &text, t);
+                        streaming_msg.set(Some(text.clone()));
                     }
                 }
+                if let Some(tools) = &ch.delta.tool_calls {
+                    info!("{:?}", tools);
+                    tool_calls.extend_from_slice(tools);
+                }
             }
-            let mut new_chat = chat.cloned();
+            streaming_msg.set(None);
             let text = text.trim();
             if !text.is_empty() {
-                let msg = ChatCompletionRequestAssistantMessageArgs::default()
-                    .content(text)
-                    .build()?
-                    .into();
-                new_chat.push(msg);
+                chat.push(Message::Assistant {
+                    content: Some(text.to_string()),
+                });
             }
             if tool_calls.is_empty() {
                 return Ok(());
             }
             let new_messages = call_tools(tool_calls, host.clone()).await?;
-            new_chat.extend(new_messages.into_iter());
-            chat.set(new_chat);
-            streaming_msg.set(None);
+            chat.extend(new_messages);
 
             count += 1;
             if count > 10 {
@@ -139,14 +107,9 @@ pub fn Home() -> Element {
     };
 
     let send_msg = move |s: String| async move {
-        let mut new_chat = { chat.cloned() };
-        new_chat.push(
-            ChatCompletionRequestUserMessageArgs::default()
-                .content(s.clone())
-                .build()?
-                .into(),
-        );
-        chat.set(new_chat);
+        chat.push(Message::User {
+            content: vec![ContentPart::Text { text: s }],
+        });
 
         run_tools_loop().await
     };
@@ -161,7 +124,7 @@ pub fn Home() -> Element {
         div { class: "content",
             div { style: "flex-grow: 1; overflow: auto;",
                 for c in chat.iter() {
-                    Message { msg: (*c).clone() }
+                    MessageEl { msg: (*c).clone() }
                 }
                 {stream_output}
                 if tool_count_warning() {

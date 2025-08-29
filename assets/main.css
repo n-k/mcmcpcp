@@ -78,18 +78,23 @@ pre code {
 }
 
 .system-message {
-    color: #91a4d2;
+    background-color: #F2F2F7;
+    color: #444444;
 }
 
 .ai-message {
     margin-right: 20%;
-    background-color: cornsilk;
+    background-color: #F5F9EE;
+    color: #2F4B2F;
 }
 
 .tool-message {
-    color: bisque;
+    background-color: #FFF8E7;
+    color: #5A4632;
 }
 
 .human-message {
     margin-left: 20%;
+    background-color: #EAF4FF;
+    color: #1E3A5F;
 }

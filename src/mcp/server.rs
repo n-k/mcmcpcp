@@ -9,7 +9,6 @@ use serde_json::{json, Value};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
-use uuid::Uuid;
 
 use crate::mcp::jsonrpc::{RpcMessage, RpcRequest};
 use crate::mcp::transport::{InboundLine, StdioTransport};
@@ -36,6 +35,7 @@ pub struct McpServer {
     pending: Arc<Mutex<HashMap<String, tokio::sync::oneshot::Sender<RpcMessage>>>>,
     pub tool_cache: Mutex<Vec<Tool>>,
     req_timeout: Duration,
+    count: Mutex<u32>,
 }
 
 impl McpServer {
@@ -64,10 +64,11 @@ impl McpServer {
             pending: Arc::new(Mutex::new(HashMap::new())),
             tool_cache: Mutex::new(vec![]),
             req_timeout,
+            count: Mutex::new(0),
         };
 
         // Spawn reader for stdout/stderr lines -> route responses
-        server.start_reader();
+        server.start_reader().await;
 
         // Initialize handshake
         timeout(startup_timeout, server.initialize())
@@ -140,7 +141,13 @@ impl McpServer {
     }
 
     pub async fn rpc_call(&self, method: &str, params: Value) -> Result<Value> {
-        let id = Uuid::new_v4().to_string();
+        let id = {
+            let mut l = self.count.lock().await;
+            let c = *l;
+            *l = c + 1;
+            c
+        };
+        let id = format!("{id}");
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.pending.lock().await.insert(id.clone(), tx);
 

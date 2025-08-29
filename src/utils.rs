@@ -1,25 +1,23 @@
 use std::sync::Arc;
 
-use async_openai::types::{
-    ChatCompletionMessageToolCallChunk, ChatCompletionRequestMessage,
-    ChatCompletionRequestMessageContentPartText, ChatCompletionRequestToolMessageArgs,
-    ChatCompletionRequestToolMessageContent, ChatCompletionRequestToolMessageContentPart,
-    ChatCompletionTool,
-};
 use serde_json::Value;
 
+use crate::llm::Function;
+use crate::llm::Message;
+use crate::llm::Tool;
+use crate::llm::ToolCallDelta;
 use crate::mcp::Host;
 use crate::mcp::ToolDescriptor;
 
-pub fn tools_to_openai_objects(tools: Vec<ToolDescriptor>) -> Vec<ChatCompletionTool> {
+pub fn tools_to_message_objects(tools: Vec<ToolDescriptor>) -> Vec<Tool> {
     tools
         .iter()
         .map(move |t| {
             let t = t.clone();
             // eprintln!("==={t:?}===");
-            ChatCompletionTool {
-                r#type: async_openai::types::ChatCompletionToolType::Function,
-                function: async_openai::types::FunctionObject {
+            Tool {
+                r#type: "function".into(),
+                function: Function {
                     name: format!("{}/{}", t.server_id, t.tool.name),
                     description: t.tool.description,
                     parameters: Some(t.tool.input_schema),
@@ -31,10 +29,10 @@ pub fn tools_to_openai_objects(tools: Vec<ToolDescriptor>) -> Vec<ChatCompletion
 }
 
 pub async fn call_tools(
-    tool_calls: Vec<ChatCompletionMessageToolCallChunk>,
+    tool_calls: Vec<ToolCallDelta>,
     host: Arc<Host>,
-) -> anyhow::Result<Vec<ChatCompletionRequestMessage>> {
-    let mut new_chat: Vec<ChatCompletionRequestMessage> = vec![];
+) -> anyhow::Result<Vec<Message>> {
+    let mut new_chat: Vec<Message> = vec![];
     for tc in tool_calls.into_iter() {
         let Some(f) = tc.function.as_ref() else {
             continue;
@@ -65,29 +63,9 @@ pub async fn call_tools(
                 .filter(|c| c.r#type == "text")
                 .map(|c| c.text.unwrap_or_else(|| "".to_string()))
                 .collect();
-            if messages.len() == 0 {
-                let tcm = ChatCompletionRequestToolMessageArgs::default()
-                    .content(ChatCompletionRequestToolMessageContent::Text(
-                        messages[0].clone(),
-                    ))
-                    .build()?
-                    .into();
-                new_chat.push(tcm);
-            } else {
-                let parts = messages
-                    .into_iter()
-                    .map(|m| {
-                        ChatCompletionRequestToolMessageContentPart::Text(
-                            ChatCompletionRequestMessageContentPartText { text: m },
-                        )
-                    })
-                    .collect();
-                let tcm = ChatCompletionRequestToolMessageArgs::default()
-                    .content(ChatCompletionRequestToolMessageContent::Array(parts))
-                    .build()?
-                    .into();
-                new_chat.push(tcm);
-            }
+            let text = messages.join("\n");
+            let tcm = Message::Tool { tool_call_id: tc.id.unwrap_or_else(|| "".into()), content: text };
+            new_chat.push(tcm);
         }
     }
     Ok(new_chat)

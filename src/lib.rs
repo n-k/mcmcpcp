@@ -6,7 +6,7 @@ mod box_select;
 mod chat_input;
 mod collapsible;
 mod home;
-mod llm;
+pub mod llm;
 pub mod mcp;
 mod md2rsx;
 mod message;
