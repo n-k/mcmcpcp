@@ -1,8 +1,11 @@
 use anyhow::{Context, Result};
-use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufReader}, process::ChildStdin};
+use serde_json::Value;
 use tokio::process::ChildStdout;
 use tokio::sync::mpsc;
-use serde_json::Value;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    process::ChildStdin,
+};
 
 #[derive(Debug)]
 pub enum InboundLine {
@@ -40,13 +43,18 @@ impl StdioTransport {
             }
         });
 
-        Self { stdin, rx_lines: Some(rx) }
+        Self {
+            stdin,
+            rx_lines: Some(rx),
+        }
     }
 
     pub async fn send_json(&mut self, v: &Value) -> Result<()> {
         let mut s = serde_json::to_string(v)?;
         s.push('\n');
-        self.stdin.write_all(s.as_bytes()).await
+        self.stdin
+            .write_all(s.as_bytes())
+            .await
             .context("writing to child stdin")?;
         self.stdin.flush().await?;
         Ok(())

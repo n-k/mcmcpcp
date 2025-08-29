@@ -5,7 +5,7 @@ use serde_json::Value;
 #[serde(rename_all = "camelCase")]
 pub struct RpcRequest {
     pub jsonrpc: String,
-    pub id: Value,               // allow string or number
+    pub id: Value, // allow string or number
     pub method: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<Value>,

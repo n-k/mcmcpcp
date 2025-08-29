@@ -6,11 +6,7 @@ pub fn BoxSelect(
     options: Vec<String>,
     on_select: Callback<Option<String>, ()>,
 ) -> Element {
-    let selected_none_class = if value.is_none() {
-        "selected"
-    } else {
-        ""
-    };
+    let selected_none_class = if value.is_none() { "selected" } else { "" };
     rsx! {
         div { class: "box-select", style: "",
             div {

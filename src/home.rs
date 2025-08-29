@@ -4,8 +4,7 @@ use async_openai::{
     config::OpenAIConfig,
     types::{
         ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
-        ChatCompletionRequestSystemMessageArgs,
-        ChatCompletionRequestUserMessageArgs,
+        ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
         ChatCompletionTool, CreateChatCompletionRequestArgs,
     },
     Client,
@@ -79,7 +78,7 @@ pub fn Home() -> Element {
         let mut count = 0u8;
         loop {
             let host = consume_context::<Arc<Host>>();
-            let tools = host.list_tools();
+            let tools = host.list_tools().await;
             let tools: Vec<ChatCompletionTool> = tools_to_openai_objects(tools);
             let request = CreateChatCompletionRequestArgs::default()
                 .max_tokens(2048u32)
@@ -148,7 +147,7 @@ pub fn Home() -> Element {
                 .into(),
         );
         chat.set(new_chat);
-        
+
         run_tools_loop().await
     };
 

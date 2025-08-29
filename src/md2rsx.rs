@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use pulldown_cmark::{Event, Parser, TagEnd, HeadingLevel};
+use pulldown_cmark::{Event, HeadingLevel, Parser, TagEnd};
 
 pub fn markdown_to_rsx<'a>(md: &'a str) -> Element {
     let parser = Parser::new(md);
@@ -49,7 +49,7 @@ pub fn markdown_to_rsx<'a>(md: &'a str) -> Element {
                                 code { {children} }
                             }
                         }
-                    },
+                    }
                     TagEnd::HtmlBlock => rsx! {
                         blockquote { {children} }
                     },
@@ -82,7 +82,6 @@ pub fn markdown_to_rsx<'a>(md: &'a str) -> Element {
                     // TagEnd::Link => todo!(),
                     // TagEnd::Image => todo!(),
                     // TagEnd::MetadataBlock(metadata_block_kind) => todo!(),
-
                     _ => rsx! {
                         div { {children} }
                         // TagEnd::FootnoteDefinition => todo!(),

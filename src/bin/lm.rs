@@ -1,18 +1,23 @@
 use reqwest::Client;
 // use tokio_stream::StreamExt;
 use futures::StreamExt as _;
-use std::env;
-use std::io::{self, Write};
 use serde::{Deserialize, Serialize};
+use std::io::{self, Write};
 
 /// --- REQUEST SIDE ---
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "role", rename_all = "lowercase")]
 pub enum Message {
-    System { content: String },
-    User { content: Vec<ContentPart> },
-    Assistant { content: Option<String> },
+    System {
+        content: String,
+    },
+    User {
+        content: Vec<ContentPart>,
+    },
+    Assistant {
+        content: Option<String>,
+    },
     Tool {
         tool_call_id: String,
         content: String,
@@ -100,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
         .bearer_auth(&api_key)
         .header("Content-Type", "application/json")
         .json(&serde_json::json!({
-            "model": "gpt-oss:20b",
+            "model": "q3c",
             "stream": true,
             "messages": messages,
             "tools": [
@@ -181,7 +186,10 @@ async fn main() -> anyhow::Result<()> {
 
     // If a tool call was made, simulate executing it
     if let (Some(id), Some(name)) = (current_tool_id, current_tool_name) {
-        println!("\n\n🔧 Tool requested: {} with args {}", name, current_tool_args);
+        println!(
+            "\n\n🔧 Tool requested: {} with args {}",
+            name, current_tool_args
+        );
 
         // Simulate tool execution
         let tool_result = format!("The weather in New York is Sunny, 25°C.");
@@ -194,16 +202,16 @@ async fn main() -> anyhow::Result<()> {
 
         // Send follow-up request with tool result
         let followup_res = client
-            .post("https://api.openai.com/v1/chat/completions")
+            .post("http://192.168.29.3:11434/v1/chat/completions")
             .bearer_auth(&api_key)
             .header("Content-Type", "application/json")
             .json(&serde_json::json!({
-                "model": "gpt-4o-mini",
+                "model": "q3c",
                 "stream": true,
                 "messages": [
                     // normally you'd include the entire prior conversation here
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": "What is in this image? Then call the weather tool for New York."},
+                    {"role": "user", "content": "call the weather tool for New York."},
                     {"role": "assistant", "tool_calls": [{"id": id, "type": "function", "function": {"name": name, "arguments": current_tool_args}}]},
                     tool_message
                 ]

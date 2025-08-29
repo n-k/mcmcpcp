@@ -7,7 +7,8 @@ const SETTINGS_ICON: Asset = asset!("/assets/settings.svg");
 
 #[component]
 pub fn ChatInput(disabled: bool, on_send: Callback<String, ()>) -> Element {
-    let mut text = use_signal(|| "fetch markdown and summarize front page of hackernews".to_string());
+    let mut text =
+        use_signal(|| "fetch markdown and summarize front page of hackernews".to_string());
     let set_text = move |e: Event<FormData>| {
         if disabled {
             return;
@@ -35,9 +36,7 @@ pub fn ChatInput(disabled: bool, on_send: Callback<String, ()>) -> Element {
                 onclick: move |_e: Event<MouseData>| {
                     nav.replace(crate::Route::Settings {});
                 },
-                img {
-                    src: SETTINGS_ICON,
-                }
+                img { src: SETTINGS_ICON }
             }
             textarea {
                 style: "flex-grow: 1; max-height: 10em; height: 4em;",
@@ -53,12 +52,8 @@ pub fn ChatInput(disabled: bool, on_send: Callback<String, ()>) -> Element {
                 },
                 value: text,
             }
-            button { 
-                onclick: send, 
-                disabled, 
-                img {
-                    src: SEND_ICON,
-                }
+            button { onclick: send, disabled,
+                img { src: SEND_ICON }
             }
         }
     }

@@ -4,10 +4,10 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
 use dioxus::logger::tracing::{debug, warn};
-use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::process::Command;
+use tokio::sync::Mutex;
 use tokio::time::timeout;
 use uuid::Uuid;
 
@@ -39,7 +39,8 @@ pub struct McpServer {
 }
 
 impl McpServer {
-    pub async fn spawn(spec: ServerSpec,
+    pub async fn spawn(
+        spec: ServerSpec,
         req_timeout: Duration,
         startup_timeout: Duration,
     ) -> Result<Self> {
@@ -69,7 +70,8 @@ impl McpServer {
         server.start_reader();
 
         // Initialize handshake
-        timeout(startup_timeout, server.initialize()).await
+        timeout(startup_timeout, server.initialize())
+            .await
             .context("timeout waiting initialize")??;
         // Prefetch tools
         server.refresh_tools().await?;
@@ -77,8 +79,8 @@ impl McpServer {
         Ok(server)
     }
 
-    fn start_reader(&self) {
-        let rx = self.transport.lock().rx_lines.take();
+    async fn start_reader(&self) {
+        let rx = self.transport.lock().await.rx_lines.take();
         let pending = self.pending.clone();
         tokio::spawn(async move {
             let mut rx = rx.expect("rx_lines present when starting reader");
@@ -92,10 +94,11 @@ impl McpServer {
                                 RpcMessage::Req(r) => r.id.clone(),
                                 RpcMessage::Ok(r) => r.id.clone(),
                                 RpcMessage::Err(r) => r.id.clone(),
-                            }.clone();
+                            }
+                            .clone();
                             let id = id.as_str().unwrap_or_else(|| "");
 
-                            if let Some(tx) = pending.lock().remove(id) {
+                            if let Some(tx) = pending.lock().await.remove(id) {
                                 if let Err(e) = tx.send(msg) {
                                     eprintln!("Error sending to oneshot: {e:?}");
                                 }
@@ -114,30 +117,32 @@ impl McpServer {
     }
 
     async fn initialize(&self) -> Result<Value> {
-        self.rpc_call("initialize", json!({
-            "protocolVersion": "2025-06-18",
-            "clientInfo": {
-                "name": "mcmcpcp",
-                "version": "1",
-            },
-            "capabilities": {},
-        })).await
+        self.rpc_call(
+            "initialize",
+            json!({
+                "protocolVersion": "2025-06-18",
+                "clientInfo": {
+                    "name": "mcmcpcp",
+                    "version": "1",
+                },
+                "capabilities": {},
+            }),
+        )
+        .await
     }
 
     pub async fn refresh_tools(&self) -> Result<()> {
-        let tools = self.rpc_call(
-            "tools/list", 
-            json!({})
-        ).await?;
-        let tools: Vec<Tool> = serde_json::from_value(tools.get("tools").cloned().unwrap_or_default())?;
-        *self.tool_cache.lock() = tools;
+        let tools = self.rpc_call("tools/list", json!({})).await?;
+        let tools: Vec<Tool> =
+            serde_json::from_value(tools.get("tools").cloned().unwrap_or_default())?;
+        *self.tool_cache.lock().await = tools;
         Ok(())
     }
 
     pub async fn rpc_call(&self, method: &str, params: Value) -> Result<Value> {
         let id = Uuid::new_v4().to_string();
         let (tx, rx) = tokio::sync::oneshot::channel();
-        self.pending.lock().insert(id.clone(), tx);
+        self.pending.lock().await.insert(id.clone(), tx);
 
         let req = RpcRequest {
             jsonrpc: "2.0".into(),
@@ -146,15 +151,21 @@ impl McpServer {
             params: if params.is_null() { None } else { Some(params) },
         };
         let v = serde_json::to_value(&req)?;
-        self.transport.lock().send_json(&v).await?;
+        self.transport.lock().await.send_json(&v).await?;
 
-        let msg = timeout(self.req_timeout, rx).await
+        let msg = timeout(self.req_timeout, rx)
+            .await
             .map_err(|_| anyhow!("rpc {} timed out", method))?
             .map_err(|_| anyhow!("rpc {} channel closed", method))?;
 
         match msg {
             RpcMessage::Ok(ok) => Ok(ok.result),
-            RpcMessage::Err(e) => Err(anyhow!("rpc error {}: {} {:?}", method, e.error.message, e.error.data)),
+            RpcMessage::Err(e) => Err(anyhow!(
+                "rpc error {}: {} {:?}",
+                method,
+                e.error.message,
+                e.error.data
+            )),
             RpcMessage::Req(_r) => Err(anyhow!("unexpected request from server during call")),
         }
     }

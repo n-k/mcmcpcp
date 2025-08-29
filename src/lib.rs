@@ -6,16 +6,16 @@ mod box_select;
 mod chat_input;
 mod collapsible;
 mod home;
-mod settings;
 mod llm;
 pub mod mcp;
 mod md2rsx;
 mod message;
+mod settings;
 mod utils;
 
 use home::Home;
-use settings::Settings;
 use mcp::Host;
+use settings::Settings;
 
 use crate::mcp::ServerSpec;
 

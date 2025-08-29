@@ -1,10 +1,7 @@
-use std::{sync::Arc, time::Duration};
 use dioxus::{logger::tracing::Level, prelude::*};
+use std::{sync::Arc, time::Duration};
 
-use mcmcpcp::{
-    App,
-    mcp::Host,
-};
+use mcmcpcp::{mcp::Host, App};
 
 fn main() {
     dioxus::logger::init(Level::WARN).unwrap();
@@ -15,7 +12,5 @@ fn main() {
 
     // dioxus_native::launch(App);
     // dioxus::launch(App);
-    LaunchBuilder::new()
-        .with_context(host)
-        .launch(App)
+    LaunchBuilder::new().with_context(host).launch(App)
 }
