@@ -14,10 +14,9 @@ mod settings;
 mod utils;
 
 use home::Home;
-use mcp::Host;
 use settings::Settings;
-
-use crate::mcp::ServerSpec;
+use mcp::ServerSpec;
+use mcp::host::Host;
 
 const FAVICON: Asset = asset!("/assets/favicon.svg");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
@@ -26,14 +25,19 @@ const MAIN_CSS: Asset = asset!("/assets/main.css");
 pub fn App() -> Element {
     let init = use_resource(|| async {
         let host = consume_context::<Arc<Host>>();
-        let spec = ServerSpec {
-            id: "fetch".into(),
-            cmd: "npx".into(),
-            args: vec!["@tokenizin/mcp-npx-fetch".into()],
-        };
-        let res = host.add_server(spec).await;
-        if let Err(e) = res {
-            eprintln!("failed to start server {e}");
+
+        let _h = host.clone();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let spec = ServerSpec {
+                id: "fetch".into(),
+                cmd: "npx".into(),
+                args: vec!["@tokenizin/mcp-npx-fetch".into()],
+            };
+            let res = _h.add_server(spec).await;
+            if let Err(e) = res {
+                eprintln!("failed to start server {e}");
+            }
         }
         anyhow::Ok(())
     });

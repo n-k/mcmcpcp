@@ -41,6 +41,7 @@ impl LlmClient {
         Ok(res.json().await?)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn stream(
         &self,
         model: &str,
@@ -70,6 +71,69 @@ impl LlmClient {
         let (tx, rx) = mpsc::channel::<StreamEvent>(32);
 
         spawn(async move {
+            let mut stream = res.bytes_stream();
+            while let Some(item) = stream.next().await {
+                let chunk = match item {
+                    Ok(x) => x,
+                    Err(e) => {
+                        warn!("Response stream error: {e:?}");
+                        return;
+                    },
+                };
+                let text = String::from_utf8_lossy(&chunk);
+                for line in text.lines() {
+                    if !line.starts_with("data: ") {
+                        continue;
+                    }
+                    let data = &line[6..];
+                    if data == "[DONE]" {
+                        info!("\n-- Stream complete --");
+                        return;
+                    }
+                    if let Ok(event) = serde_json::from_str::<StreamEvent>(data) {
+                        if let Err(e) = tx.send(event).await {
+                            warn!("Could not send response event: {e:?}");
+                            return;
+                        }
+                    }
+                }
+            }
+        });
+
+        Ok(rx)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn stream(
+        &self,
+        model: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> anyhow::Result<Receiver<StreamEvent>> {
+        use wasm_bindgen_futures::spawn_local;
+        let res = self
+            .client
+            .post(format!("{}/chat/completions", &self.api_url))
+            .bearer_auth(&self.api_key)
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({
+                "model": model,
+                "stream": true,
+                "messages": messages,
+                "tools": tools,
+            }))
+            .send()
+            .await?;
+
+        if !res.status().is_success() {
+            let status = res.status().clone();
+            let body = res.text().await?;
+            bail!("Request failed: {} - {}", status, body);
+        }
+
+        let (tx, rx) = mpsc::channel::<StreamEvent>(32);
+
+        spawn_local(async move {
             let mut stream = res.bytes_stream();
             while let Some(item) = stream.next().await {
                 let chunk = match item {

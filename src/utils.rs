@@ -6,7 +6,7 @@ use crate::llm::Function;
 use crate::llm::Message;
 use crate::llm::Tool;
 use crate::llm::ToolCallDelta;
-use crate::mcp::Host;
+use crate::mcp::host::Host;
 use crate::mcp::ToolDescriptor;
 
 pub fn tools_to_message_objects(tools: Vec<ToolDescriptor>) -> Vec<Tool> {

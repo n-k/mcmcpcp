@@ -2,49 +2,51 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use dioxus::logger::tracing::{debug, warn};
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use tokio::process::Command;
+use serde_json::{Value, json};
 use tokio::sync::Mutex;
-use tokio::time::timeout;
 
 use crate::mcp::jsonrpc::{RpcMessage, RpcRequest};
-use crate::mcp::transport::{InboundLine, StdioTransport};
-
-#[derive(Debug, Clone)]
-pub struct ServerSpec {
-    pub id: String,
-    pub cmd: String,
-    pub args: Vec<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Tool {
-    pub name: String,
-    pub description: Option<String>,
-    pub input_schema: Value,
-}
+use crate::mcp::{McpTool, ServerSpec};
 
 pub struct McpServer {
     #[allow(unused)]
     pub spec: ServerSpec,
-    transport: Mutex<StdioTransport>,
+    #[cfg(not(target_arch = "wasm32"))]
+    transport: Mutex<crate::mcp::transport::StdioTransport>,
     pending: Arc<Mutex<HashMap<String, tokio::sync::oneshot::Sender<RpcMessage>>>>,
-    pub tool_cache: Mutex<Vec<Tool>>,
+    pub tool_cache: Mutex<Vec<McpTool>>,
     req_timeout: Duration,
     count: Mutex<u32>,
 }
 
 impl McpServer {
+    #[cfg(target_arch = "wasm32")]
+    pub async fn spawn(
+        spec: ServerSpec,
+        req_timeout: Duration,
+        _startup_timeout: Duration,
+    ) -> Result<Self> {
+        Ok(Self {
+            spec,
+            pending: Arc::new(Mutex::new(HashMap::new())),
+            tool_cache: Mutex::new(vec![]),
+            req_timeout,
+            count: Mutex::new(0),
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn spawn(
         spec: ServerSpec,
         req_timeout: Duration,
         startup_timeout: Duration,
     ) -> Result<Self> {
-        let mut child = Command::new(&spec.cmd)
+        use tokio::time::timeout;
+        use crate::mcp::transport::StdioTransport;
+
+        let mut child = tokio::process::Command::new(&spec.cmd)
             .args(&spec.args)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
@@ -80,6 +82,7 @@ impl McpServer {
         Ok(server)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     async fn start_reader(&self) {
         let rx = self.transport.lock().await.rx_lines.take();
         let pending = self.pending.clone();
@@ -87,7 +90,7 @@ impl McpServer {
             let mut rx = rx.expect("rx_lines present when starting reader");
             while let Some(line) = rx.recv().await {
                 match line {
-                    InboundLine::Stdout(s) => {
+                    crate::mcp::transport::InboundLine::Stdout(s) => {
                         let msg = serde_json::from_str::<RpcMessage>(&s);
                         if let Ok(msg) = msg {
                             // Route by id to pending waiter (if any)
@@ -109,7 +112,7 @@ impl McpServer {
                             debug!(line=%s, "server stdout (non-json)");
                         }
                     }
-                    InboundLine::Stderr(s) => {
+                    crate::mcp::transport::InboundLine::Stderr(s) => {
                         warn!(line=%s, "server stderr");
                     }
                 }
@@ -134,13 +137,21 @@ impl McpServer {
 
     pub async fn refresh_tools(&self) -> Result<()> {
         let tools = self.rpc_call("tools/list", json!({})).await?;
-        let tools: Vec<Tool> =
+        let tools: Vec<McpTool> =
             serde_json::from_value(tools.get("tools").cloned().unwrap_or_default())?;
         *self.tool_cache.lock().await = tools;
         Ok(())
     }
 
+    #[cfg(target_arch = "wasm32")]
+    pub async fn rpc_call(&self, _method: &str, _params: Value) -> Result<Value> {
+        Ok(Value::Null)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn rpc_call(&self, method: &str, params: Value) -> Result<Value> {
+        use tokio::time::timeout;
+
         let id = {
             let mut l = self.count.lock().await;
             let c = *l;

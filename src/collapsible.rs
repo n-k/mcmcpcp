@@ -5,7 +5,13 @@ pub fn Collapsible(c: bool, children: Element) -> Element {
     let mut collapsed = use_signal(|| c);
     rsx! {
         button {
-            style: "position: relative; top: -2.5em;",
+            style: "
+            float: inline-start;
+            position: relative;
+            top: -1em;
+            height: 2em;
+            width: 2em;
+            ",
             onclick: move |_e| {
                 collapsed.toggle();
             },

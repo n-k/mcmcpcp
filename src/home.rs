@@ -5,13 +5,13 @@ use dioxus::{
     prelude::*,
 };
 
+use crate::{message::MessageEl, utils::{call_tools, tools_to_message_objects}};
 use crate::{
     chat_input::ChatInput,
     llm::{ContentPart, LlmClient, Message, Tool},
-    settings::SETTINGS,
-    utils::{call_tools, tools_to_message_objects},
+    mcp::host::Host,
+    settings::SETTINGS, // utils::{call_tools, tools_to_message_objects},
 };
-use crate::{mcp::Host, message::MessageEl};
 
 #[component]
 pub fn Home() -> Element {
@@ -67,6 +67,7 @@ pub fn Home() -> Element {
         let host = consume_context::<Arc<Host>>();
         let tools = host.list_tools().await;
         let tools: Vec<Tool> = tools_to_message_objects(tools);
+
         let mut count = 0u8;
         loop {
             let mut stream = client.stream(&model, &chat.read(), &tools).await?;
