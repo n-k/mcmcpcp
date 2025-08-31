@@ -7,6 +7,7 @@ use dioxus::logger::tracing::{debug, warn};
 use serde_json::{Value, json};
 use tokio::sync::Mutex;
 
+use crate::mcp::host::_Server;
 use crate::mcp::jsonrpc::{RpcMessage, RpcRequest};
 use crate::mcp::{McpTool, ServerSpec};
 
@@ -19,6 +20,21 @@ pub struct McpServer {
     pub tool_cache: Mutex<Vec<McpTool>>,
     req_timeout: Duration,
     count: Mutex<u32>,
+}
+
+#[async_trait::async_trait]
+impl _Server for McpServer {
+    async fn list_tools(&self) -> Vec<McpTool> {
+        self.tool_cache.lock().await.clone()
+    }
+
+    async fn rpc(
+        &self, 
+        method: &str, 
+        params: Value
+    ) -> anyhow::Result<serde_json::Value> {
+        self.rpc_call(method, params).await
+    }
 }
 
 impl McpServer {

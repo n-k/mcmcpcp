@@ -1,12 +1,110 @@
-use anyhow::Result;
-use serde_json::{json, Value};
+use anyhow::{Result, anyhow, bail};
+use dioxus::logger::tracing::warn;
+use serde_json::{Value, json};
 use std::{collections::HashMap, time::Duration};
-use tokio::sync::RwLock;
+use tokio::{sync::RwLock, task::spawn_local};
 
-use crate::mcp::{server::McpServer, ServerSpec, ToolDescriptor, ToolResult};
+use crate::mcp::{
+    McpTool, ServerSpec, ToolDescriptor, ToolResult, ToolResultContent, server::McpServer,
+};
+
+#[async_trait::async_trait]
+pub trait _Server: Send + Sync {
+    async fn list_tools(&self) -> Vec<McpTool>;
+
+    async fn rpc(&self, method: &str, params: Value) -> anyhow::Result<serde_json::Value>;
+}
+
+struct FetchMcpServer {}
+
+#[async_trait::async_trait]
+impl _Server for FetchMcpServer {
+    async fn list_tools(&self) -> Vec<McpTool> {
+        vec![McpTool {
+            name: "fetch".into(),
+            description: Some("Fetch the contents of a URL.".into()),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The URL to fetch"
+                    }
+                },
+                "required": ["url"]
+            }),
+        }]
+    }
+
+    async fn rpc(&self, method: &str, params: Value) -> anyhow::Result<serde_json::Value> {
+        if method != "tools/call" {
+            bail!("Error: unknown RPC method {method}");
+        }
+        let name = params
+            .get("name")
+            .map(|v| v.as_str())
+            .flatten()
+            .unwrap_or_else(|| "");
+        if name != "fetch" {
+            bail!("Unknown tool: {method}")
+        };
+        let params = params
+            .get("arguments")
+            .map(|v| v.clone())
+            .unwrap_or_else(|| json!({}));
+        if let Some(Value::String(url)) = params.get("url") {
+            let res = match _fetch(url.to_string()).await {
+                Ok(s) => s,
+                Err(e) => format!("{e:?}"),
+            };
+            return Ok(serde_json::to_value(ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".into(),
+                    text: Some(res),
+                    mime_type: None,
+                    data: None,
+                    resource: None,
+                }],
+                is_error: None,
+            })?);
+        }
+        Ok(Value::Null)
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn _fetch(url: String) -> anyhow::Result<String> {
+    let r = spawn_local(async move {
+        let client = reqwest::Client::new();
+        client
+            .get(&url)
+            .send()
+            .await?
+            .text()
+            .await
+            .map_err(|e| anyhow!("{e:?}"))
+    })
+    .await?;
+    r
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn _fetch(url: String) -> anyhow::Result<String> {
+    let client = reqwest::Client::new();
+    client
+        .get(&url)
+        .send()
+        .await?
+        .text()
+        .await
+        .map_err(|e| anyhow!("{e:?}"))
+}
+
+unsafe impl Send for FetchMcpServer {}
+unsafe impl Sync for FetchMcpServer {}
 
 pub struct Host {
-    pub servers: RwLock<HashMap<String, McpServer>>,
+    servers: RwLock<HashMap<String, Box<dyn _Server>>>,
     #[allow(unused)]
     pub request_timeout: Duration,
     #[allow(unused)]
@@ -15,8 +113,11 @@ pub struct Host {
 
 impl Host {
     pub fn new(request_timeout: Duration, startup_timeout: Duration) -> Self {
+        let mut servers: HashMap<String, Box<dyn _Server>> = HashMap::new();
+        servers.insert("builtin".into(), Box::new(FetchMcpServer {}));
+
         Self {
-            servers: RwLock::new(HashMap::new()),
+            servers: RwLock::new(servers),
             request_timeout,
             startup_timeout,
         }
@@ -25,14 +126,15 @@ impl Host {
     pub async fn add_server(&self, spec: ServerSpec) -> Result<()> {
         let server =
             McpServer::spawn(spec.clone(), self.request_timeout, self.startup_timeout).await?;
-        self.servers.write().await.insert(spec.id, server);
+        // self.servers.write().await.insert(spec.id, server);
+        self.servers.write().await.insert(spec.id, Box::new(server));
         Ok(())
     }
 
     pub async fn list_tools(&self) -> Vec<ToolDescriptor> {
         let mut res = vec![];
         for (id, s) in self.servers.read().await.iter() {
-            let tools = s.tool_cache.lock().await.clone();
+            let tools = s.list_tools().await;
             let ts: Vec<ToolDescriptor> = tools
                 .into_iter()
                 .map(move |t| ToolDescriptor {
@@ -67,7 +169,7 @@ impl Host {
             "name": tool_name,
             "arguments": arguments,
         });
-        let result = s.rpc_call("tools/call", params).await?;
+        let result = s.rpc("tools/call", params).await?;
         serde_json::from_value(result).map_err(|e| e.into())
     }
 }
