@@ -1,5 +1,4 @@
 use anyhow::{Result, anyhow, bail};
-use dioxus::logger::tracing::warn;
 use serde_json::{Value, json};
 use std::{collections::HashMap, time::Duration};
 use tokio::sync::RwLock;
@@ -80,7 +79,7 @@ async fn _fetch(url: String) -> anyhow::Result<String> {
     
     let (tx, rx) = oneshot::channel::<String>();
     wasm_bindgen_futures::spawn_local(async move {
-        // use dioxus::logger::tracing::warn;
+        use dioxus::logger::tracing::warn;
 
         let _url = format!("https://api.allorigins.win/raw?url={url}");
         let req = Request::get(&_url)
