@@ -5,7 +5,7 @@ use crate::{box_select::BoxSelect, llm::LlmClient};
 pub static SETTINGS: GlobalSignal<AppSettings> = Signal::global(|| AppSettings {
     api_url: "http://192.168.29.3:11434/v1".to_string(),
     api_key: "dummy".to_string(),
-    model: None,
+    model: Some("technobyte/Cydonia-24B-v4:latest".to_string()),
 });
 
 #[derive(Clone)]

@@ -5,7 +5,7 @@ use dioxus::{
     prelude::*,
 };
 
-use crate::{message::MessageEl, utils::{call_tools, tools_to_message_objects}};
+use crate::{llm::{FunctionDelta, ToolCallDelta}, message::MessageEl, utils::{call_tools, tools_to_message_objects}};
 use crate::{
     chat_input::ChatInput,
     llm::{ContentPart, LlmClient, Message, Tool},
@@ -89,9 +89,24 @@ pub fn Home() -> Element {
             streaming_msg.set(None);
             let text = text.trim();
             if !text.is_empty() {
-                chat.push(Message::Assistant {
-                    content: Some(text.to_string()),
-                });
+                if text.starts_with("[TOOL_CALLS]") {
+                    let t = text.replace("[TOOL_CALLS]", "");
+                    let parts: Vec<String> = t.split("<SPECIAL_32>")
+                        .map(|s| s.into())
+                        .collect();
+                    tool_calls.push(ToolCallDelta { 
+                        id: Some("...".into()), 
+                        kind: Some("function".into()), 
+                        function: Some(FunctionDelta { 
+                            name: Some(parts[0].to_string()), 
+                            arguments: Some(parts[1].clone()), 
+                        }),
+                    });
+                } else {
+                    chat.push(Message::Assistant {
+                        content: Some(text.to_string()),
+                    });
+                }
             }
             if tool_calls.is_empty() {
                 return Ok(());

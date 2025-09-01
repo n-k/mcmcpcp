@@ -8,7 +8,7 @@ const SETTINGS_ICON: Asset = asset!("/assets/settings.svg");
 #[component]
 pub fn ChatInput(disabled: bool, on_send: Callback<String, ()>) -> Element {
     let mut text =
-        use_signal(|| "fetch markdown and summarize front page of hackernews".to_string());
+        use_signal(|| "fetch and summarize front page of hackernews".to_string());
     let set_text = move |e: Event<FormData>| {
         if disabled {
             return;

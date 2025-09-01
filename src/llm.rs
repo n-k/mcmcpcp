@@ -58,6 +58,7 @@ impl LlmClient {
                 "stream": true,
                 "messages": messages,
                 "tools": tools,
+                "max_tokens": 2048,
             }))
             .send()
             .await?;

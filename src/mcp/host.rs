@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow, bail};
 use dioxus::logger::tracing::warn;
 use serde_json::{Value, json};
 use std::{collections::HashMap, time::Duration};
-use tokio::{sync::RwLock, task::spawn_local};
+use tokio::sync::RwLock;
 
 use crate::mcp::{
     McpTool, ServerSpec, ToolDescriptor, ToolResult, ToolResultContent, server::McpServer,
@@ -53,14 +53,15 @@ impl _Server for FetchMcpServer {
             .map(|v| v.clone())
             .unwrap_or_else(|| json!({}));
         if let Some(Value::String(url)) = params.get("url") {
-            let res = match _fetch(url.to_string()).await {
+            let text = match _fetch(url.to_string()).await {
                 Ok(s) => s,
                 Err(e) => format!("{e:?}"),
             };
+            warn!("Fetch result: {text}");
             return Ok(serde_json::to_value(ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".into(),
-                    text: Some(res),
+                    text: Some(text),
                     mime_type: None,
                     data: None,
                     resource: None,
@@ -74,24 +75,50 @@ impl _Server for FetchMcpServer {
 
 #[cfg(target_arch = "wasm32")]
 async fn _fetch(url: String) -> anyhow::Result<String> {
-    let r = spawn_local(async move {
-        let client = reqwest::Client::new();
-        client
-            .get(&url)
+    use gloo_net::http::Request;
+    use tokio::sync::oneshot;
+    use dioxus::logger::tracing::warn;
+    
+    let (tx, rx) = oneshot::channel::<String>();
+    wasm_bindgen_futures::spawn_local(async move {
+        // use dioxus::logger::tracing::warn;
+
+        let _url = format!("https://api.allorigins.win/raw?url={url}");
+        let req = Request::get(&_url)
             .send()
-            .await?
-            .text()
-            .await
-            .map_err(|e| anyhow!("{e:?}"))
-    })
-    .await?;
-    r
+            .await;
+        let text = match req {
+            Ok(req) => {
+                let response = req.text().await;
+                match response {
+                    Ok(s) => {
+                        s
+                    },
+                    Err(e) => {
+                        format!("Error in builtin/fetch: {e:?}")
+                    }
+                }
+            }
+            Err(e) => {
+                format!("Error in builtin/fetch: {e:?}")
+            }
+        };
+        let len = text.len();
+        if tx.send(text).is_err() {
+            warn!("Receiver dropped before message was sent");
+        }
+    });
+
+    let s = match rx.await {
+        Ok(val) => val,
+        Err(e) => format!("Error fetching data during tool call!"),
+    };
+    Ok(s)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 async fn _fetch(url: String) -> anyhow::Result<String> {
-    let client = reqwest::Client::new();
-    client
+    reqwest::Client::new()
         .get(&url)
         .send()
         .await?
@@ -126,7 +153,6 @@ impl Host {
     pub async fn add_server(&self, spec: ServerSpec) -> Result<()> {
         let server =
             McpServer::spawn(spec.clone(), self.request_timeout, self.startup_timeout).await?;
-        // self.servers.write().await.insert(spec.id, server);
         self.servers.write().await.insert(spec.id, Box::new(server));
         Ok(())
     }
