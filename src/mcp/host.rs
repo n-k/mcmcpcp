@@ -125,9 +125,6 @@ async fn _fetch(url: String) -> anyhow::Result<String> {
         .map_err(|e| anyhow!("{e:?}"))
 }
 
-unsafe impl Send for FetchMcpServer {}
-unsafe impl Sync for FetchMcpServer {}
-
 pub struct Host {
     servers: RwLock<HashMap<String, Box<dyn _Server>>>,
     #[allow(unused)]
@@ -171,13 +168,13 @@ impl Host {
         res
     }
 
-    // pub async fn invoke(&self, server_id: &str, method: &str, params: Value) -> Result<Value> {
-    //     let servers = self.servers.read().await;
-    //     let s = servers
-    //         .get(server_id)
-    //         .ok_or_else(|| anyhow::anyhow!("unknown server {server_id}"))?;
-    //     s.rpc_call(method, params).await
-    // }
+    pub async fn invoke(&self, server_id: &str, method: &str, params: Value) -> Result<Value> {
+        let servers = self.servers.read().await;
+        let s = servers
+            .get(server_id)
+            .ok_or_else(|| anyhow::anyhow!("unknown server {server_id}"))?;
+        s.rpc(method, params).await
+    }
 
     pub async fn tool_call(
         &self,
@@ -185,15 +182,11 @@ impl Host {
         tool_name: &str,
         arguments: Value,
     ) -> Result<ToolResult> {
-        let servers = self.servers.read().await;
-        let s = servers
-            .get(server_id)
-            .ok_or_else(|| anyhow::anyhow!("unknown server {server_id}"))?;
         let params = json!({
             "name": tool_name,
             "arguments": arguments,
         });
-        let result = s.rpc("tools/call", params).await?;
+        let result = self.invoke(server_id, "tools/call", params).await?;
         serde_json::from_value(result).map_err(|e| e.into())
     }
 }

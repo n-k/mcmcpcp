@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::{collapsible::Collapsible, llm::{ContentPart, Message}};
+use crate::{ui::collapsible::Collapsible, llm::{ContentPart, Message}};
 
 #[component]
 pub fn MessageEl(msg: Message) -> Element {

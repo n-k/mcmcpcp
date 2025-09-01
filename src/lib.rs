@@ -1,18 +1,13 @@
 use dioxus::prelude::*;
 
-mod box_select;
-mod chat_input;
-mod collapsible;
-mod home;
 pub mod llm;
 pub mod mcp;
 mod md2rsx;
-mod message;
-mod settings;
+mod ui;
 mod utils;
 
-use home::Home;
-use settings::Settings;
+use ui::home::Home;
+use ui::settings::Settings;
 
 const FAVICON: Asset = asset!("/assets/favicon.svg");
 const MAIN_CSS: Asset = asset!("/assets/main.css");

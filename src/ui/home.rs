@@ -5,12 +5,15 @@ use dioxus::{
     prelude::*,
 };
 
-use crate::{llm::{FunctionDelta, ToolCallDelta}, message::MessageEl, utils::{call_tools, tools_to_message_objects}};
+use crate::{llm::{FunctionDelta, ToolCallDelta}, utils::{call_tools, tools_to_message_objects}};
 use crate::{
-    chat_input::ChatInput,
+    ui::{
+        message::MessageEl,
+        chat_input::ChatInput,
+        settings::SETTINGS,
+    },
     llm::{ContentPart, LlmClient, Message, Tool},
     mcp::host::Host,
-    settings::SETTINGS, // utils::{call_tools, tools_to_message_objects},
 };
 
 #[component]

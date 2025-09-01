@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::{box_select::BoxSelect, llm::LlmClient};
+use crate::{ui::box_select::BoxSelect, llm::LlmClient};
 
 pub static SETTINGS: GlobalSignal<AppSettings> = Signal::global(|| AppSettings {
     api_url: "http://192.168.29.3:11434/v1".to_string(),
@@ -52,11 +52,6 @@ pub fn Settings() -> Element {
     };
     let get_available_models = move || async move {
         let s = settings();
-        // let client = Client::with_config(
-        //     OpenAIConfig::new()
-        //         .with_api_key(s.api_key)
-        //         .with_api_base(s.api_url),
-        // );
         let lmc = LlmClient::new(s.api_url, s.api_key);
         let models = lmc.models().await?;
         let names = models.data.into_iter().map(|m| m.id).collect::<Vec<_>>();
