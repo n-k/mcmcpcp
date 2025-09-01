@@ -57,7 +57,6 @@ impl _Server for FetchMcpServer {
                 Ok(s) => s,
                 Err(e) => format!("{e:?}"),
             };
-            warn!("Fetch result: {text}");
             return Ok(serde_json::to_value(ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".into(),
