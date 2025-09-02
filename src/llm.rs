@@ -195,6 +195,7 @@ impl LlmClient {
                 "stream": true,        // Enable streaming response
                 "messages": messages,
                 "tools": tools,
+                "max_tokens": 2048,
             }))
             .send()
             .await?;

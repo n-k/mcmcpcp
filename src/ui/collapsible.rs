@@ -12,14 +12,18 @@ pub fn Collapsible(c: bool, children: Element) -> Element {
             float: inline-start;
             position: relative;
             top: -24px;
-            height: 24px;
-            width: 24px;
+            height: 26px;
+            width: 26px;
+            padding: 0;
+            margin: 0;
             ",
             onclick: move |_e| {
                 collapsed.toggle();
             },
             if collapsed() {
-                img { src: EXPAND_ICON }
+                img { 
+                    src: EXPAND_ICON 
+                }
             } else {
                 img { src: COLLAPSE_ICON }
             }

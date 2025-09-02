@@ -12,10 +12,13 @@ body {
     width: calc(100%);
     display: flex;
     flex-direction: column;
+    background-color: #e1d2c2;
 }
 
 textarea {
     font-size: 1.1rem !important;
+    background-color: #F2F2F7;
+    color: #444444;
 }
 
 code {

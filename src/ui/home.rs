@@ -10,6 +10,7 @@ use dioxus::{
     logger::tracing::{info, warn},
     prelude::*,
 };
+use serde_json::Value;
 
 use crate::{llm::{FunctionDelta, ToolCallDelta}, utils::{call_tools, tools_to_message_objects}};
 use crate::{
@@ -138,19 +139,8 @@ pub fn Home() -> Element {
             // Process the final response
             if !text.is_empty() {
                 // Handle special tool call format (fallback for some models)
-                if text.starts_with("[TOOL_CALLS]") {
-                    let t = text.replace("[TOOL_CALLS]", "");
-                    let parts: Vec<String> = t.split("<SPECIAL_32>")
-                        .map(|s| s.into())
-                        .collect();
-                    tool_calls.push(ToolCallDelta { 
-                        id: Some("...".into()), 
-                        kind: Some("function".into()), 
-                        function: Some(FunctionDelta { 
-                            name: Some(parts[0].to_string()), 
-                            arguments: Some(parts[1].clone()), 
-                        }),
-                    });
+                if let Ok(Some(tcd)) = extract_wierd_tool_calls(&text) {
+                    tool_calls.push(tcd);
                 } else {
                     // Regular assistant message
                     chat.push(Message::Assistant {
@@ -264,4 +254,47 @@ pub fn Home() -> Element {
             }
         }
     }
+}
+
+fn extract_wierd_tool_calls(text: &str) -> anyhow::Result<Option<ToolCallDelta>> {
+    if text.starts_with("[TOOL_CALLS]") {
+        let t = text.replace("[TOOL_CALLS]", "");
+        let parts: Vec<String> = t.split("<SPECIAL_32>")
+            .map(|s| s.into())
+            .collect();
+        return Ok(Some(ToolCallDelta { 
+            id: Some("...".into()), 
+            kind: Some("function".into()), 
+            function: Some(FunctionDelta { 
+                name: Some(parts[0].to_string()), 
+                arguments: Some(parts[1].clone()), 
+            }),
+        }));
+    }
+
+    if let Ok(Value::Object(m)) = serde_json::from_str(text) {
+        if let Some(name) = m.get("name").map(|x| x.as_str()).flatten() {
+            if let Some(args) = m.get("arguments") {
+                let arguments = if let Some(s) = args.as_str() {
+                    Some(s.to_string())
+                } else if let Some(m) = args.as_object() {
+                    let args_str = serde_json::to_string(&Value::Object(m.clone()))?;
+                    Some(args_str)
+                } else {
+                    None
+                };
+
+                return Ok(Some(ToolCallDelta { 
+                    id: Some("...".into()), 
+                    kind: Some("function".into()), 
+                    function: Some(FunctionDelta { 
+                        name: Some(name.to_string()), 
+                        arguments, 
+                    }),
+                }));
+            }
+        }
+    }
+
+    Ok(None)
 }

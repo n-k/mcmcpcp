@@ -6,6 +6,8 @@
 //! and built-in functionality like web fetching.
 
 use anyhow::{Result, anyhow, bail};
+use html2md::{parse_html_custom, TagHandler, TagHandlerFactory};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde_json::{Value, json};
 use std::{collections::HashMap, time::Duration};
 use tokio::sync::RwLock;
@@ -51,20 +53,36 @@ impl _Server for FetchMcpServer {
     /// 
     /// Provides a single "fetch" tool that can retrieve content from URLs.
     async fn list_tools(&self) -> Vec<McpTool> {
-        vec![McpTool {
-            name: "fetch".into(),
-            description: Some("Fetch the contents of a URL.".into()),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "url": {
-                        "type": "string",
-                        "description": "The URL to fetch"
-                    }
-                },
-                "required": ["url"]
-            }),
-        }]
+        vec![
+            McpTool {
+                name: "fetch".into(),
+                description: Some("Fetch the contents of a URL.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "description": "The URL to fetch"
+                        }
+                    },
+                    "required": ["url"]
+                }),
+            },
+            McpTool {
+                name: "fetch_markdown".into(),
+                description: Some("Fetch the contents of a URL as markdown".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "description": "The URL to fetch"
+                        }
+                    },
+                    "required": ["url"]
+                }),
+            },
+        ]
     }
 
     /// Handles RPC calls for the fetch server.
@@ -85,7 +103,7 @@ impl _Server for FetchMcpServer {
             .unwrap_or_else(|| "");
             
         // Only support the "fetch" tool
-        if name != "fetch" {
+        if name != "fetch" && name != "fetch_markdown" {
             bail!("Unknown tool: {name}")
         };
         
@@ -100,6 +118,20 @@ impl _Server for FetchMcpServer {
             let text = match _fetch(url.to_string()).await {
                 Ok(s) => s,
                 Err(e) => format!("Fetch error: {e:?}"),
+            };
+
+            let text = if name == "fetch_markdown" {
+                let mut handlers: HashMap<String, Box<dyn TagHandlerFactory>> = HashMap::new();
+                handlers.insert("style".to_string(), Box::new(CustomFactory));
+                handlers.insert("script".to_string(), Box::new(CustomFactory));
+                handlers.insert("link".to_string(), Box::new(CustomFactory));
+                handlers.insert("a".to_string(), Box::new(CustomFactory));
+                handlers.insert("img".to_string(), Box::new(CustomFactory));
+                handlers.insert("noscript".to_string(), Box::new(CustomFactory));
+                let md = parse_html_custom(&text, &handlers);
+                md
+            } else {
+                text
             };
             
             // Return the result in MCP tool result format
@@ -144,7 +176,8 @@ async fn _fetch(url: String) -> anyhow::Result<String> {
         use dioxus::logger::tracing::warn;
 
         // Use CORS proxy to bypass browser restrictions
-        let _url = format!("https://api.allorigins.win/raw?url={url}");
+        let encoded = utf8_percent_encode(&url, NON_ALPHANUMERIC).to_string();
+        let _url = format!("https://api.allorigins.win/raw?url={encoded}");
         let req = Request::get(&_url)
             .send()
             .await;
@@ -195,6 +228,21 @@ async fn _fetch(url: String) -> anyhow::Result<String> {
         .await
         .map_err(|e| anyhow!("{e:?}"))
 }
+
+struct CustomFactory;
+impl TagHandlerFactory for CustomFactory {
+    fn instantiate(&self) -> Box<dyn TagHandler> { Box::new(Dummy) }
+}
+
+struct Dummy;
+impl TagHandler for Dummy {
+    fn handle(&mut self, _tag: &html2md::Handle, _printer: &mut html2md::StructuredPrinter) {}
+
+    fn after_handle(&mut self, _printer: &mut html2md::StructuredPrinter) {}
+
+    fn skip_descendants(&self) -> bool {true}
+}
+
 
 /// Main MCP Host that manages multiple MCP servers and provides a unified interface.
 /// 
