@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use serde_json::Value;
 
 use crate::AppSettings;
 
@@ -22,7 +21,18 @@ pub trait Storage {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn get_storage() -> anyhow::Result<AppStorage> {
-    let storage = AppStorage::new("./data");
+    use std::path::PathBuf;
+    use directories_next::ProjectDirs;
+
+    let base = if let Some(proj_dirs) = ProjectDirs::from("com", "N K",  "mcmcpcp") {
+        proj_dirs.config_dir().to_path_buf()
+        // Lin: /home/alice/.config/barapp
+        // Win: C:\Users\Alice\AppData\Roaming\Foo Corp\Bar App\config
+        // Mac: /Users/Alice/Library/Application Support/com.Foo-Corp.Bar-App
+    } else {
+        PathBuf::from(".")
+    };
+    let storage = AppStorage::new(base);
     Ok(storage)
 }
 

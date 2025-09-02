@@ -7,6 +7,17 @@ pub fn BoxSelect(
     on_select: Callback<Option<String>, ()>,
 ) -> Element {
     let selected_none_class = if value.is_none() { "selected" } else { "" };
+    let default_option: Element = if options.is_empty() && value.is_some() {
+        let o = value.clone().unwrap();
+        rsx! {
+            div {
+                class: "option selected",
+                "{o}"
+            }
+        }
+    } else {
+        rsx! {}
+    };
     rsx! {
         div { class: "box-select", style: "",
             div {
@@ -14,6 +25,7 @@ pub fn BoxSelect(
                 onclick: move |_e| { on_select(None) },
                 "-- Select One --"
             }
+            {default_option}
             {
                 options
                     .into_iter()

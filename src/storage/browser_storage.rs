@@ -3,17 +3,26 @@ use async_trait::async_trait;
 use idb::{Database, DatabaseEvent, Factory, KeyPath, ObjectStoreParams, TransactionMode};
 use js_sys::wasm_bindgen::JsValue;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use serde_wasm_bindgen::Serializer;
+
+use dioxus::logger::tracing::warn;
 
 use crate::AppSettings;
 use super::Storage;
 
+#[derive(Debug)]
 pub struct IdbStorage {
     db: Database,
 }
 
 impl IdbStorage {
     pub async fn new() -> anyhow::Result<Self> {
+        let db = Self::create_db().await?;
+        Ok(Self { db })
+    }
+
+    pub async fn create_db() -> anyhow::Result<Database> {
         // Get a factory instance from global scope
         let factory = Factory::new().map_err(|e| anyhow!("{e:?}"))?;
 
@@ -29,12 +38,14 @@ impl IdbStorage {
 
             // Prepare object store params
             let mut store_params = ObjectStoreParams::new();
-            store_params.auto_increment(true);
+            store_params.auto_increment(false);
             store_params.key_path(Some(KeyPath::new_single("id")));
-
             let _store = database
                 .create_object_store("settings", store_params.clone())
                 .unwrap();
+            let mut store_params = ObjectStoreParams::new();
+            store_params.auto_increment(true);
+            store_params.key_path(Some(KeyPath::new_single("id")));
             let _store = database
                 .create_object_store("sessions", store_params)
                 .unwrap();
@@ -42,37 +53,42 @@ impl IdbStorage {
 
         // `await` open request
         let db = open_request.await.map_err(|e| anyhow!("{e:?}"))?;
-        Ok(Self { db })
+        Ok(db)
     }
 }
 
 #[async_trait::async_trait(?Send)]
 impl Storage for IdbStorage {
     async fn save_settings(&self, settings: &AppSettings) -> anyhow::Result<()> {
-        let transaction = self
-            .db
+        // let db = IdbStorage::create_db().await?;
+        // warn!("Starting save process...");
+        let transaction = self.db
             .transaction(&["settings"], TransactionMode::ReadWrite)
             .map_err(|e| anyhow!("{e:?}"))?;
         let store = transaction
             .object_store("settings")
             .map_err(|e| anyhow!("{e:?}"))?;
 
-        store
+        // warn!("Got store, will put");
+        let doc = settings.serialize(&Serializer::json_compatible()).unwrap();
+        // warn!("serialized: {doc:?}");
+        let put_res = store
             .put(
-                &settings.serialize(&Serializer::json_compatible()).unwrap(),
-                Some(&KeyPath::new_single("1").into()),
+                &doc,
+                None,
             )
             .map_err(|e| anyhow!("{e:?}"))?
             .await
             .map_err(|e| anyhow!("{e:?}"))?;
-
+        // warn!("put op: {put_res:?}");
         transaction.commit().unwrap().await.unwrap();
+        // warn!("done");
         Ok(())
     }
 
     async fn load_settings(&self) -> anyhow::Result<Option<AppSettings>> {
-        let transaction = self
-            .db
+        // let db = IdbStorage::create_db().await?;
+        let transaction = self.db
             .transaction(&["settings"], TransactionMode::ReadOnly)
             .map_err(|e| anyhow!("{e:?}"))?;
         let store = transaction.object_store("settings").unwrap();

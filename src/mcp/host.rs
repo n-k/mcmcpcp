@@ -7,7 +7,6 @@
 
 use anyhow::{Result, anyhow, bail};
 use html2md::{parse_html_custom, TagHandler, TagHandlerFactory};
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde_json::{Value, json};
 use std::{collections::HashMap, time::Duration};
 use tokio::sync::RwLock;
@@ -55,8 +54,8 @@ impl _Server for FetchMcpServer {
     async fn list_tools(&self) -> Vec<McpTool> {
         vec![
             McpTool {
-                name: "fetch".into(),
-                description: Some("Fetch the contents of a URL.".into()),
+                name: "fetch_raw_html".into(),
+                description: Some("Fetch the contents of a URL as raw HTML.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
@@ -69,8 +68,8 @@ impl _Server for FetchMcpServer {
                 }),
             },
             McpTool {
-                name: "fetch_markdown".into(),
-                description: Some("Fetch the contents of a URL as markdown".into()),
+                name: "fetch".into(),
+                description: Some("Fetch the contents of a URL.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
@@ -103,7 +102,7 @@ impl _Server for FetchMcpServer {
             .unwrap_or_else(|| "");
             
         // Only support the "fetch" tool
-        if name != "fetch" && name != "fetch_markdown" {
+        if name != "fetch" && name != "fetch_raw_html" {
             bail!("Unknown tool: {name}")
         };
         
@@ -120,7 +119,7 @@ impl _Server for FetchMcpServer {
                 Err(e) => format!("Fetch error: {e:?}"),
             };
 
-            let text = if name == "fetch_markdown" {
+            let text = if name == "fetch" {
                 let mut handlers: HashMap<String, Box<dyn TagHandlerFactory>> = HashMap::new();
                 handlers.insert("style".to_string(), Box::new(CustomFactory));
                 handlers.insert("script".to_string(), Box::new(CustomFactory));
@@ -167,6 +166,7 @@ async fn _fetch(url: String) -> anyhow::Result<String> {
     use gloo_net::http::Request;
     use tokio::sync::oneshot;
     use dioxus::logger::tracing::warn;
+    use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
     
     // Create a channel to receive the result from the spawned task
     let (tx, rx) = oneshot::channel::<String>();

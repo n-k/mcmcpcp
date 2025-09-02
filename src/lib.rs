@@ -9,12 +9,12 @@
 //! The application is structured as a single-page application with routing between
 //! the main chat interface and settings configuration.
 
-use dioxus::logger::tracing::warn;
 use dioxus::prelude::*;
 
 // Public modules - exposed for external use
-pub mod llm;    // LLM client and message handling
-pub mod mcp;    // Model Context Protocol implementation
+pub mod app_settings;   // Settings for the application
+pub mod llm;            // LLM client and message handling
+pub mod mcp;            // Model Context Protocol implementation
 
 // Private modules - internal implementation details
 mod md2rsx;     // Markdown to RSX conversion utilities
@@ -22,23 +22,15 @@ mod ui;         // User interface components
 mod utils;      // Utility functions for tool handling
 mod storage;         // DB for settings, chats etc
 
-use serde::{Deserialize, Serialize};
+use app_settings::AppSettings;
 use ui::home::Home;
 use ui::settings::Settings;
-
-use crate::storage::Storage;
 
 /// Application favicon - SVG format for scalability
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 /// Main CSS stylesheet for application styling
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AppSettings {
-    pub api_url: String,
-    pub api_key: String,
-    pub model: Option<String>,
-}
 
 /// Root application component that sets up routing and global resources.
 /// 
@@ -50,9 +42,6 @@ pub struct AppSettings {
 pub fn App() -> Element {
     // Initialize application resources (currently just a placeholder)
     let init = use_resource(|| async {
-        let storage = storage::get_storage().await?;
-        let s = storage.load_settings().await?;
-        warn!("Settings: {s:?}");
         anyhow::Ok(())
     });
     

@@ -12,12 +12,11 @@ use dioxus::{
 };
 use serde_json::Value;
 
-use crate::{llm::{FunctionDelta, ToolCallDelta}, utils::{call_tools, tools_to_message_objects}};
+use crate::{llm::{FunctionDelta, ToolCallDelta}, storage::{get_storage, Storage}, utils::{call_tools, tools_to_message_objects}};
 use crate::{
     ui::{
         message::MessageEl,      // Component for displaying individual messages
         chat_input::ChatInput,   // Component for message input
-        settings::SETTINGS,      // Global settings accessor
     },
     llm::{ContentPart, LlmClient, Message, Tool},  // LLM types and client
     mcp::host::Host,  // MCP host for tool execution
@@ -30,31 +29,49 @@ use crate::{
 /// and provides safety mechanisms to prevent runaway tool execution.
 #[component]
 pub fn Home() -> Element {
+    let settings = use_resource(move || async {
+        let storage = match get_storage().await {
+            Ok(s) => Some(s),
+            Err(e) => {
+                warn!("Could not get storage: {e:?}");
+                None
+            }
+        };
+        let settings = if let Some(st) = storage {
+            st.load_settings().await.unwrap()
+        } else {
+            None
+        };
+        settings
+    });
     // Initialize LLM client from settings
-    let client = use_resource(|| async {
-        let settings = SETTINGS();
-        let api_base = settings.api_url;
-        let api_key = settings.api_key;
+    let client = use_resource(move || async move {
+        let Some(settings) = settings() else { return None; };
+        let Some(settings) = settings else { return None; };
+        let api_base = settings.provider.get_api_url();
+        let api_key = settings.provider.get_api_key().unwrap_or_else(|| "".to_string());
 
         // Create LLM client with configured API settings
         let lmc = LlmClient::new(api_base, api_key);
-        lmc
+        Some(lmc)
     });
     
     // Get selected model from settings
-    let model = use_resource(|| async {
-        let settings = SETTINGS();
-        let model = settings.model;
+    let model = use_resource(move || async move {
+        let Some(settings) = settings() else { return None; };
+        let Some(settings) = settings else { return None; };
+        let model = settings.provider.get_model();
         model
     });
     
     // Check if the application is properly configured
     let is_configured = use_resource(move || async move {
-        let settings = SETTINGS();
+        let Some(settings) = settings() else { return false; };
+        let Some(settings) = settings else { return false; };
         let client_loaded = client().is_some();
         let model = model().flatten();
         let model_loaded = model.is_some();
-        let configured = client_loaded && model_loaded && !settings.api_url.is_empty();
+        let configured = client_loaded && model_loaded && settings.provider.is_configured();
         configured
     });
     
@@ -97,6 +114,9 @@ pub fn Home() -> Element {
         };
         let Some(model) = model else { return Ok(()) };
         let Some(client) = client() else {
+            return Ok(());
+        };
+        let Some(client) = client else {
             return Ok(());
         };
         
