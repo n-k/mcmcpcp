@@ -1,0 +1,96 @@
+use anyhow::anyhow;
+use async_trait::async_trait;
+use idb::{Database, DatabaseEvent, Factory, KeyPath, ObjectStoreParams, TransactionMode};
+use js_sys::wasm_bindgen::JsValue;
+use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen::Serializer;
+
+use crate::AppSettings;
+use super::Storage;
+
+pub struct IdbStorage {
+    db: Database,
+}
+
+impl IdbStorage {
+    pub async fn new() -> anyhow::Result<Self> {
+        // Get a factory instance from global scope
+        let factory = Factory::new().map_err(|e| anyhow!("{e:?}"))?;
+
+        // Create an open request for the database
+        let mut open_request = factory
+            .open("app_storage", Some(1))
+            .map_err(|e| anyhow!("{e:?}"))?;
+
+        // Add an upgrade handler for database
+        open_request.on_upgrade_needed(|event| {
+            // Get database instance from event
+            let database = event.database().unwrap();
+
+            // Prepare object store params
+            let mut store_params = ObjectStoreParams::new();
+            store_params.auto_increment(true);
+            store_params.key_path(Some(KeyPath::new_single("id")));
+
+            let _store = database
+                .create_object_store("settings", store_params.clone())
+                .unwrap();
+            let _store = database
+                .create_object_store("sessions", store_params)
+                .unwrap();
+        });
+
+        // `await` open request
+        let db = open_request.await.map_err(|e| anyhow!("{e:?}"))?;
+        Ok(Self { db })
+    }
+}
+
+#[async_trait::async_trait(?Send)]
+impl Storage for IdbStorage {
+    async fn save_settings(&self, settings: &AppSettings) -> anyhow::Result<()> {
+        let transaction = self
+            .db
+            .transaction(&["settings"], TransactionMode::ReadWrite)
+            .map_err(|e| anyhow!("{e:?}"))?;
+        let store = transaction
+            .object_store("settings")
+            .map_err(|e| anyhow!("{e:?}"))?;
+
+        store
+            .put(
+                &settings.serialize(&Serializer::json_compatible()).unwrap(),
+                Some(&KeyPath::new_single("1").into()),
+            )
+            .map_err(|e| anyhow!("{e:?}"))?
+            .await
+            .map_err(|e| anyhow!("{e:?}"))?;
+
+        transaction.commit().unwrap().await.unwrap();
+        Ok(())
+    }
+
+    async fn load_settings(&self) -> anyhow::Result<Option<AppSettings>> {
+        let transaction = self
+            .db
+            .transaction(&["settings"], TransactionMode::ReadOnly)
+            .map_err(|e| anyhow!("{e:?}"))?;
+        let store = transaction.object_store("settings").unwrap();
+        let stored_settings: Option<JsValue> = store
+            .get(JsValue::from_f64(1.))
+            .map_err(|e| anyhow!("{e:?}"))?
+            .await
+            .map_err(|e| anyhow!("{e:?}"))?;
+
+        // Deserialize the stored data
+        let stored_settings: Option<anyhow::Result<AppSettings>> =
+            stored_settings.map(|stored_settings| {
+                serde_wasm_bindgen::from_value(stored_settings).map_err(|e| anyhow!("{e:?}"))
+            });
+        let stored_settings = stored_settings.transpose()?;
+
+        // Wait for the transaction to complete (alternatively, you can also commit the transaction)
+        transaction.await.unwrap();
+        Ok(stored_settings)
+    }
+}

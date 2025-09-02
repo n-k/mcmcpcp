@@ -685,7 +685,7 @@ dependencies = [
  "bitflags 2.9.3",
  "bytes",
  "cursor-icon",
- "http 1.3.1",
+ "http",
  "keyboard-types",
  "serde",
  "smol_str",
@@ -1448,7 +1448,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b6782436b323a84b4d9f90cf2365b35a1cdb918191221f71865dcc2e70016b6"
 dependencies = [
  "dioxus-cli-config",
- "http 1.3.1",
+ "http",
  "infer",
  "jni",
  "js-sys",
@@ -1652,7 +1652,7 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "generational-box",
- "http 1.3.1",
+ "http",
  "serde",
  "server_fn",
  "tracing",
@@ -1961,6 +1961,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "directories-next"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "339ee130d97a610ea5a5872d2bbb130fdf68884ff09d3028b81bec8a1ac23bbc"
+dependencies = [
+ "cfg-if",
+ "dirs-sys-next",
+]
+
+[[package]]
 name = "dirs"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1977,8 +1987,19 @@ checksum = "e01a3366d27ee9890022452ee61b2b63a67e6f13f58900b651ff5665f0bb1fab"
 dependencies = [
  "libc",
  "option-ext",
- "redox_users",
+ "redox_users 0.5.2",
  "windows-sys 0.60.2",
+]
+
+[[package]]
+name = "dirs-sys-next"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ebda144c4fe02d1f7ea1a7d9641b6fc6b580adcfa024ae48797ecdeb6825b4d"
+dependencies = [
+ "libc",
+ "redox_users 0.4.6",
+ "winapi",
 ]
 
 [[package]]
@@ -2769,27 +2790,6 @@ dependencies = [
 
 [[package]]
 name = "gloo-net"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43aaa242d1239a8822c15c645f02166398da4f8b5c4bae795c1f5b44e9eee173"
-dependencies = [
- "futures-channel",
- "futures-core",
- "futures-sink",
- "gloo-utils",
- "http 0.2.12",
- "js-sys",
- "pin-project",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
-name = "gloo-net"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c06f627b1a58ca3d42b45d6104bf1e1a03799df472df00988b6ba21accc10580"
@@ -2798,7 +2798,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "gloo-utils",
- "http 1.3.1",
+ "http",
  "js-sys",
  "pin-project",
  "serde",
@@ -2996,7 +2996,7 @@ dependencies = [
  "fnv",
  "futures-core",
  "futures-sink",
- "http 1.3.1",
+ "http",
  "indexmap",
  "slab",
  "tokio",
@@ -3084,17 +3084,6 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "0.2.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "601cbb57e577e2f5ef5be8e7b83f0f63994f25aa94d673e54a92d5c516d101f1"
-dependencies = [
- "bytes",
- "fnv",
- "itoa",
-]
-
-[[package]]
-name = "http"
 version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4a85d31aea989eead29a3aaf9e1115a180df8282431156e533de47660892565"
@@ -3111,7 +3100,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1efedce1fb8e6913f23e0c92de8e62cd5b772a67e7b3946df930a62566c93184"
 dependencies = [
  "bytes",
- "http 1.3.1",
+ "http",
 ]
 
 [[package]]
@@ -3122,7 +3111,7 @@ checksum = "b021d93e26becf5dc7e1b75b1bed1fd93124b374ceb73f43d4d4eafec896a64a"
 dependencies = [
  "bytes",
  "futures-core",
- "http 1.3.1",
+ "http",
  "http-body",
  "pin-project-lite",
 ]
@@ -3144,7 +3133,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "h2",
- "http 1.3.1",
+ "http",
  "http-body",
  "httparse",
  "itoa",
@@ -3161,7 +3150,7 @@ version = "0.27.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3c93eb611681b207e1fe55d5a71ecf91572ec8a6705cdb6857f7d8d5242cf58"
 dependencies = [
- "http 1.3.1",
+ "http",
  "hyper",
  "hyper-util",
  "rustls",
@@ -3198,7 +3187,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-util",
- "http 1.3.1",
+ "http",
  "http-body",
  "hyper",
  "ipnet",
@@ -3372,6 +3361,20 @@ name = "icu_segmenter_data"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1e52775179941363cc594e49ce99284d13d6948928d8e72c755f55e98caa1eb"
+
+[[package]]
+name = "idb"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3afe8830d5802f769dc0be20a87f9f116798c896650cb6266eb5c19a3c109eed"
+dependencies = [
+ "js-sys",
+ "num-traits",
+ "thiserror 1.0.69",
+ "tokio",
+ "wasm-bindgen",
+ "web-sys",
+]
 
 [[package]]
 name = "ident_case"
@@ -3902,11 +3905,15 @@ dependencies = [
  "async-trait",
  "dioxus",
  "dioxus-native",
+ "directories-next",
  "futures",
- "gloo-net 0.5.0",
+ "gloo-net",
+ "idb",
+ "js-sys",
  "pulldown-cmark",
  "reqwest",
  "serde",
+ "serde-wasm-bindgen",
  "serde_json",
  "tokio",
  "wasm-bindgen-futures",
@@ -5297,6 +5304,17 @@ dependencies = [
 
 [[package]]
 name = "redox_users"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba009ff324d1fc1b900bd1fdb31564febe58a8ccc8a6fdbb93b543d33b13ca43"
+dependencies = [
+ "getrandom 0.2.16",
+ "libredox",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "redox_users"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4e608c6638b9c18977b00b475ac1f28d14e84b27d8d42f70e0bf1e3dec127ac"
@@ -5368,7 +5386,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2",
- "http 1.3.1",
+ "http",
  "http-body",
  "http-body-util",
  "hyper",
@@ -5778,8 +5796,8 @@ dependencies = [
  "const_format",
  "dashmap",
  "futures",
- "gloo-net 0.6.0",
- "http 1.3.1",
+ "gloo-net",
+ "http",
  "js-sys",
  "pin-project-lite",
  "reqwest",
@@ -6884,7 +6902,7 @@ dependencies = [
  "bitflags 2.9.3",
  "bytes",
  "futures-util",
- "http 1.3.1",
+ "http",
  "http-body",
  "iri-string",
  "pin-project-lite",
@@ -7006,7 +7024,7 @@ checksum = "eadc29d668c91fcc564941132e17b28a7ceb2f3ebf0b9dae3e03fd7a6748eb0d"
 dependencies = [
  "bytes",
  "data-encoding",
- "http 1.3.1",
+ "http",
  "httparse",
  "log",
  "native-tls",
@@ -8364,7 +8382,7 @@ dependencies = [
  "dunce",
  "gtk",
  "html5ever",
- "http 1.3.1",
+ "http",
  "javascriptcore-rs",
  "jni",
  "kuchikiki",

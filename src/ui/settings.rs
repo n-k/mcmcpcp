@@ -1,19 +1,12 @@
 use dioxus::prelude::*;
 
-use crate::{ui::box_select::BoxSelect, llm::LlmClient};
+use crate::{llm::LlmClient, ui::box_select::BoxSelect, AppSettings};
 
 pub static SETTINGS: GlobalSignal<AppSettings> = Signal::global(|| AppSettings {
     api_url: "http://192.168.29.3:11434/v1".to_string(),
     api_key: "dummy".to_string(),
     model: Some("technobyte/Cydonia-24B-v4:latest".to_string()),
 });
-
-#[derive(Clone)]
-pub struct AppSettings {
-    pub api_url: String,
-    pub api_key: String,
-    pub model: Option<String>,
-}
 
 #[allow(non_snake_case)]
 #[component]

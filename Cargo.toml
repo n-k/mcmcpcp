@@ -18,10 +18,14 @@ async-trait = "0.1"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 dioxus-native = { version = "0.7.0-rc.0" }
 tokio = { version = "1", default-features = false, features = ["sync", "rt", "macros", "process"] }
+directories-next = "2"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4"
-gloo-net = "0.5"
+gloo-net = "0.6"
+idb = "0.6"
+serde-wasm-bindgen = "0.6"
+js-sys = "0.3"
 
 [features]
 default = ["desktop"]
