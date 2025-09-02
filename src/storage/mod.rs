@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use crate::AppSettings;
+use crate::{app_settings::Chat, AppSettings};
 
 #[cfg(target_arch = "wasm32")]
 mod browser_storage;
@@ -8,15 +8,19 @@ mod browser_storage;
 mod file_storage;
 
 #[cfg(not(target_arch = "wasm32"))]
-type AppStorage = file_storage::FileStorage;
+pub type AppStorage = file_storage::FileStorage;
 #[cfg(target_arch = "wasm32")]
-type AppStorage = browser_storage::IdbStorage;
+pub type AppStorage = browser_storage::IdbStorage;
 
 
 #[async_trait(?Send)]
 pub trait Storage {
     async fn save_settings(&self, settings: &AppSettings) -> anyhow::Result<()>;
     async fn load_settings(&self) -> anyhow::Result<Option<AppSettings>>;
+    async fn save_chat(&self, chat: &Chat) -> anyhow::Result<u32>;
+    async fn list_chats(&self) -> anyhow::Result<Vec<Chat>>;
+    async fn get_chat(&self, id: u32) -> anyhow::Result<Option<Chat>>;
+    async fn delete_chat(&self, id: u32) -> anyhow::Result<()>;
 }
 
 #[cfg(not(target_arch = "wasm32"))]

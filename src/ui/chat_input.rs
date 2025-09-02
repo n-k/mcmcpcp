@@ -3,7 +3,6 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 
 const SEND_ICON: Asset = asset!("/assets/send.svg");
-const SETTINGS_ICON: Asset = asset!("/assets/settings.svg");
 
 #[component]
 pub fn ChatInput(disabled: bool, on_send: Callback<String, ()>) -> Element {
@@ -26,18 +25,18 @@ pub fn ChatInput(disabled: bool, on_send: Callback<String, ()>) -> Element {
         _send();
     };
     let disabled = if disabled { Some(true) } else { None };
-    let nav = navigator();
+    // let nav = navigator();
     rsx! {
         div { style: "
             display: flex;
             flex-direction: row;
             ",
-            button {
-                onclick: move |_e: Event<MouseData>| {
-                    nav.replace(crate::Route::Settings {});
-                },
-                img { src: SETTINGS_ICON }
-            }
+            // button {
+            //     onclick: move |_e: Event<MouseData>| {
+            //         nav.replace(crate::Route::Settings {});
+            //     },
+            //     img { src: SETTINGS_ICON }
+            // }
             textarea {
                 style: "flex-grow: 1; max-height: 10em; height: 4em;",
                 disabled,

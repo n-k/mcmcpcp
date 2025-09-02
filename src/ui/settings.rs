@@ -78,13 +78,13 @@ pub fn Settings() -> Element {
                 display: flex;
                 flex-direction: row;
                 margin-top: 1em;
-                justify-content: space-between;
+                // justify-content: space-between;
                 ",
                 h3 { "Settings" }
                 div { style: "
                     align-self: center;
                     ",
-                    Link { to: crate::Route::Home {}, "Back" }
+                    Link { to: crate::Route::NewChat {}, "Back" }
                 }
             }
             ElProviderSettings {

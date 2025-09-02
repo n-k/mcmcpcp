@@ -20,16 +20,21 @@ pub mod mcp;            // Model Context Protocol implementation
 mod md2rsx;     // Markdown to RSX conversion utilities
 mod ui;         // User interface components
 mod utils;      // Utility functions for tool handling
-mod storage;         // DB for settings, chats etc
+mod storage;    // DB for settings, chats etc
 
 use app_settings::AppSettings;
-use ui::home::Home;
+use ui::home::NewChat;
+use ui::home::ChatEl;
 use ui::settings::Settings;
+use ui::slideout::Slideout;
+
+use crate::ui::chat_log::ChatLog;
 
 /// Application favicon - SVG format for scalability
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 /// Main CSS stylesheet for application styling
 const MAIN_CSS: Asset = asset!("/assets/main.css");
+const SETTINGS_ICON: Asset = asset!("/assets/settings.svg");
 
 
 /// Root application component that sets up routing and global resources.
@@ -71,7 +76,9 @@ pub fn App() -> Element {
 enum Route {
     #[layout(Layout)]
     #[route("/")]
-    Home {},
+    NewChat { },
+    #[route("/chats/:id")]
+    ChatEl { id: u32 },
     #[route("/settings")]
     Settings { },
     #[route("/:..segments")]
@@ -84,7 +91,35 @@ enum Route {
 /// to include navigation bars, headers, footers, or other shared UI elements.
 #[component]
 fn Layout() -> Element {
+    let mut slideout = use_signal(|| { false });
+    let nav = navigator();
     rsx! {
+        div {
+            style: "
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 9;
+            display: flex;
+            flex-direction: column;
+            ",
+            button {
+                onclick: move |_e: Event<MouseData>| {
+                    nav.replace(crate::Route::Settings {});
+                },
+                img { src: SETTINGS_ICON }
+            },
+            button {
+                onclick: move |_e: Event<MouseData>| { slideout.toggle() },
+                "_"
+            },
+        }
+        Slideout {
+            open: slideout,
+            children: rsx!{
+                ChatLog {}
+            },
+        }
         Outlet::<Route> {}
     }
 }
@@ -96,6 +131,6 @@ fn Layout() -> Element {
 fn PageNotFound(segments: Vec<String>) -> Element {
     rsx! {
         "Could not find the page you are looking for."
-        Link { to: Route::Home {}, "Go To Home" }
+        Link { to: Route::NewChat {}, "Go To Home" }
     }
 }

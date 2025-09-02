@@ -12,7 +12,7 @@ use dioxus::{
 };
 use serde_json::Value;
 
-use crate::{llm::{FunctionDelta, ToolCallDelta}, storage::{get_storage, Storage}, utils::{call_tools, tools_to_message_objects}};
+use crate::{app_settings::Chat, llm::{FunctionDelta, ToolCallDelta}, storage::{get_storage, Storage}, utils::{call_tools, tools_to_message_objects}};
 use crate::{
     ui::{
         message::MessageEl,      // Component for displaying individual messages
@@ -22,14 +22,45 @@ use crate::{
     mcp::host::Host,  // MCP host for tool execution
 };
 
+#[component]
+pub fn ChatEl(id: u32) -> Element {
+    rsx! {
+        Home {
+            id: Signal::new(Some(id)),
+        }
+    }
+}
+
+#[component]
+pub fn NewChat() -> Element {
+    rsx! {
+        Home {
+            id: Signal::new(None),
+        }
+    }
+}
+
 /// Main chat interface component.
 /// 
 /// This component provides the primary user interface for chatting with LLMs.
 /// It manages the conversation state, handles streaming responses, executes tools,
 /// and provides safety mechanisms to prevent runaway tool execution.
 #[component]
-pub fn Home() -> Element {
-    let settings = use_resource(move || async {
+pub fn Home(id: Signal<Option<u32>>) -> Element {
+    // Chat conversation history
+    let mut chat: Signal<Chat> = use_signal(|| {
+        Chat {
+            id: None,
+            chat_type: "chat".to_string(),
+            messages: vec![Message::System {
+                content: "You are a helpful assistant. 
+                    You have access to tools which you can call to help the user in the user's task."
+                    .into(),
+            }],
+        }
+    });
+    let _ = use_resource(move || async move {
+        let Some(id) = id() else { return; };
         let storage = match get_storage().await {
             Ok(s) => Some(s),
             Err(e) => {
@@ -37,11 +68,21 @@ pub fn Home() -> Element {
                 None
             }
         };
-        let settings = if let Some(st) = storage {
-            st.load_settings().await.unwrap()
-        } else {
-            None
+        let Some(storage) = storage else { return; };
+        if let Ok(Some(ch)) = storage.get_chat(id).await {
+            chat.set(ch);
+        }
+    });
+    let settings = use_resource(move || async move {
+        let storage = match get_storage().await {
+            Ok(s) => Some(s),
+            Err(e) => {
+                warn!("Could not get storage: {e:?}");
+                None
+            }
         };
+        let Some(storage) = storage else { return None; };
+        let settings = storage.load_settings().await.unwrap();
         settings
     });
     // Initialize LLM client from settings
@@ -60,7 +101,7 @@ pub fn Home() -> Element {
     let model = use_resource(move || async move {
         let Some(settings) = settings() else { return None; };
         let Some(settings) = settings else { return None; };
-        let model = settings.provider.get_model();
+        let model: Option<String> = settings.provider.get_model();
         model
     });
     
@@ -86,15 +127,20 @@ pub fn Home() -> Element {
     
     // Current streaming message content (for real-time display)
     let mut streaming_msg: Signal<Option<String>> = use_signal(|| None);
-    
-    // Chat conversation history
-    let mut chat: Signal<Vec<Message>> = use_signal(|| {
-        vec![Message::System {
-            content: "You are a helpful assistant. 
-                You have access to tools which you can call to help the user in the user's task."
-                .into(),
-        }]
-    });
+
+    let save_chat = move || async move {
+        let storage = match get_storage().await {
+            Ok(s) => Some(s),
+            Err(e) => {
+                warn!("Could not get storage: {e:?}");
+                None
+            }
+        };
+        let Some(stg) = storage else { return Ok(()) };
+        let id = stg.save_chat(&chat()).await?;
+        chat.with_mut(|c| { c.id = Some(id); });
+        anyhow::Ok(())
+    };
     
     // Flag to show warning when too many tool calls are made
     let mut tool_count_warning: Signal<bool> = use_signal(|| false);
@@ -128,7 +174,7 @@ pub fn Home() -> Element {
         let mut count = 0u8; // Safety counter to prevent infinite loops
         loop {
             // Start streaming response from LLM
-            let mut stream = client.stream(&model, &chat.read(), &tools).await?;
+            let mut stream = client.stream(&model, &chat.read().messages, &tools).await?;
             let mut text = "".to_string();
             let mut tool_calls = vec![];
             
@@ -163,25 +209,32 @@ pub fn Home() -> Element {
                     tool_calls.push(tcd);
                 } else {
                     // Regular assistant message
-                    chat.push(Message::Assistant {
-                        content: Some(text.to_string()),
+                    chat.with_mut(|c| {
+                        c.messages.push(Message::Assistant {
+                            content: Some(text.to_string()),
+                        });
                     });
                 }
             }
             
             // If no tools were called, we're done
             if tool_calls.is_empty() {
+                let save_res = save_chat().await;
+                warn!("Save: {save_res:?}");
                 return Ok(());
             }
             
             // Execute the requested tools
             let new_messages = call_tools(tool_calls, host.clone()).await?;
-            chat.extend(new_messages);
+            chat.with_mut(|c| {
+                c.messages.extend(new_messages);
+            });
 
             // Safety check: prevent runaway tool execution
             count += 1;
             if count > 10 {
                 tool_count_warning.set(true);
+                save_chat().await?;
                 return Ok(());
             }
         }
@@ -193,8 +246,10 @@ pub fn Home() -> Element {
     // response and tool execution loop.
     let send_msg = move |s: String| async move {
         // Add user message to chat history
-        chat.push(Message::User {
-            content: vec![ContentPart::Text { text: s }],
+        chat.with_mut(|c| {
+            c.messages.push(Message::User {
+                content: vec![ContentPart::Text { text: s }],
+            });
         });
 
         // Start the LLM response and tool execution loop
@@ -217,7 +272,7 @@ pub fn Home() -> Element {
             // Scrollable message area
             div { style: "flex-grow: 1; overflow: auto;",
                 // Render all messages in the conversation
-                for c in chat.iter() {
+                for c in chat.read().messages.iter() {
                     MessageEl { msg: (*c).clone() }
                 }
                 

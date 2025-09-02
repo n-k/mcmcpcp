@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::llm::Message;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppSettings {
     pub id: Option<u32>,
@@ -50,4 +52,12 @@ impl ProviderSettings {
             ProviderSettings::Ollama { model, .. } => model.clone(),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Chat {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<u32>,
+    pub chat_type: String,
+    pub messages: Vec<Message>,
 }

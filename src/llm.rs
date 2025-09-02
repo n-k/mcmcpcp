@@ -274,7 +274,7 @@ pub struct Model {
 /// 
 /// Messages have different roles (system, user, assistant, tool) and contain
 /// content appropriate for each role. This follows the OpenAI API message format.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "role", rename_all = "lowercase")]
 pub enum Message {
     /// System message that sets context and instructions for the LLM
@@ -304,7 +304,7 @@ pub enum Message {
 /// Represents different types of content that can be included in a user message.
 /// 
 /// Supports text content and image URLs for multimodal interactions.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentPart {
     /// Plain text content
@@ -322,7 +322,7 @@ pub enum ContentPart {
 /// Represents an image URL for multimodal content.
 /// 
 /// Used when including images in user messages for vision-capable models.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ImageUrl {
     /// URL pointing to the image resource
     pub url: String,
