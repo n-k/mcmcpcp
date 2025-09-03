@@ -12,7 +12,7 @@ use dioxus::{
 };
 use serde_json::Value;
 
-use crate::{app_settings::Chat, llm::{FunctionDelta, ToolCallDelta}, storage::{get_storage, Storage}, utils::{call_tools, tools_to_message_objects}};
+use crate::{app_settings::Chat, llm::{FunctionDelta, ToolCallDelta}, storage::{get_storage, Storage}, utils::{call_tools, tools_to_message_objects}, Route};
 use crate::{
     ui::{
         message::MessageEl,      // Component for displaying individual messages
@@ -47,6 +47,7 @@ pub fn NewChat() -> Element {
 /// and provides safety mechanisms to prevent runaway tool execution.
 #[component]
 pub fn Home(id: Signal<Option<u32>>) -> Element {
+    let nav = navigator();
     // Chat conversation history
     let mut chat: Signal<Chat> = use_signal(|| {
         Chat {
@@ -137,8 +138,11 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
             }
         };
         let Some(stg) = storage else { return Ok(()) };
-        let id = stg.save_chat(&chat()).await?;
-        chat.with_mut(|c| { c.id = Some(id); });
+        let new_chat_id = stg.save_chat(&chat()).await?;
+        chat.with_mut(|c| { c.id = Some(new_chat_id); });
+        if id() != Some(new_chat_id) {
+            nav.push(Route::ChatEl { id: new_chat_id });
+        }
         anyhow::Ok(())
     };
     

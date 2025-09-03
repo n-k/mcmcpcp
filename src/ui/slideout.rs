@@ -1,4 +1,4 @@
-use dioxus::{logger::tracing::warn, prelude::*};
+use dioxus::prelude::*;
 
 #[component]
 pub fn Slideout(open: Signal<bool>, children: Element) -> Element {

@@ -34,7 +34,14 @@ use crate::ui::chat_log::ChatLog;
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 /// Main CSS stylesheet for application styling
 const MAIN_CSS: Asset = asset!("/assets/main.css");
+// Home icon
+const HOME_ICON: Asset = asset!("/assets/home.svg");
+// Chat log icon
+const CHATS_ICON: Asset = asset!("/assets/chat_list.svg");
+// Settings icon
 const SETTINGS_ICON: Asset = asset!("/assets/settings.svg");
+// Back icon
+const BACK_ICON: Asset = asset!("/assets/back.svg");
 
 
 /// Root application component that sets up routing and global resources.
@@ -93,6 +100,7 @@ enum Route {
 fn Layout() -> Element {
     let mut slideout = use_signal(|| { false });
     let nav = navigator();
+    let route = use_route::<Route>();
     rsx! {
         div {
             style: "
@@ -105,13 +113,32 @@ fn Layout() -> Element {
             ",
             button {
                 onclick: move |_e: Event<MouseData>| {
-                    nav.replace(crate::Route::Settings {});
+                    nav.replace(crate::Route::NewChat {});
                 },
-                img { src: SETTINGS_ICON }
+                img { src: HOME_ICON }
+            },
+            if let Route::Settings {..} = &route {
+                button {
+                    onclick: move |_e: Event<MouseData>| {
+                        if nav.can_go_back() {
+                            nav.go_back();
+                        } else {
+                            nav.replace(crate::Route::NewChat {});
+                        }
+                    },
+                    img { src: BACK_ICON }
+                }
+            } else {
+                button {
+                    onclick: move |_e: Event<MouseData>| {
+                        nav.replace(crate::Route::Settings {});
+                    },
+                    img { src: SETTINGS_ICON }
+                }
             },
             button {
                 onclick: move |_e: Event<MouseData>| { slideout.toggle() },
-                "_"
+                img { src: CHATS_ICON }
             },
         }
         Slideout {
