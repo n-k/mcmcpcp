@@ -8,9 +8,14 @@ use crate::{
     ui::box_select::BoxSelect,
 };
 
+#[derive(Props, Clone, PartialEq)]
+pub struct SettingsProps {
+    pub on_close: Option<EventHandler<()>>,
+}
+
 #[allow(non_snake_case)]
 #[component]
-pub fn Settings() -> Element {
+pub fn Settings(props: SettingsProps) -> Element {
     let mut provider = use_signal(move || {
         ProviderSettings::OpenRouter { api_key: "".to_string(), model: None }
     });
@@ -72,21 +77,35 @@ pub fn Settings() -> Element {
     }
 
     rsx! {
-        div { class: "content", style: "padding: 1em;",
-            div { style: "
-                flex-grow: 0;
-                display: flex;
-                flex-direction: row;
-                margin-top: 1em;
-                // justify-content: space-between;
-                ",
-                h3 { "Settings" }
-                div { style: "
-                    align-self: center;
-                    ",
-                    Link { to: crate::Route::NewChat {}, "Back" }
+        div { 
+            style: "padding: 1rem; height: 100%; overflow-y: auto;",
+            onclick: move |e: Event<MouseData>| {
+                e.stop_propagation();
+            },
+            
+            div {
+                style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;",
+                h3 { style: "margin: 0;", "Settings" }
+                if let Some(on_close) = props.on_close.clone() {
+                    button {
+                        style: "
+                            background: none;
+                            border: none;
+                            font-size: 1.2rem;
+                            cursor: pointer;
+                            padding: 0.25rem;
+                            color: #666;
+                        ",
+                        onclick: move |_| {
+                            on_close.call(());
+                        },
+                        "×"
+                    }
                 }
             }
+            
+            hr { style: "margin-bottom: 1rem;" }
+            
             ElProviderSettings {
                 ps: provider,
                 onchange: handle_provider_change,

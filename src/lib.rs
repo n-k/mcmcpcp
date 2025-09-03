@@ -40,8 +40,6 @@ const HOME_ICON: Asset = asset!("/assets/home.svg");
 const CHATS_ICON: Asset = asset!("/assets/chat_list.svg");
 // Settings icon
 const SETTINGS_ICON: Asset = asset!("/assets/settings.svg");
-// Back icon
-const BACK_ICON: Asset = asset!("/assets/back.svg");
 
 
 /// Root application component that sets up routing and global resources.
@@ -74,9 +72,9 @@ pub fn App() -> Element {
 
 /// Application routes defining the available pages and their URL patterns.
 /// 
-/// The application has three main routes:
+/// The application has two main routes:
 /// - `/` - Home page with the main chat interface
-/// - `/settings` - Settings page for configuration
+/// - `/chats/:id` - Individual chat pages
 /// - `/*` - Catch-all for 404 pages
 #[derive(Debug, Clone, Routable, PartialEq)]
 #[rustfmt::skip]
@@ -86,8 +84,6 @@ enum Route {
     NewChat { },
     #[route("/chats/:id")]
     ChatEl { id: u32 },
-    #[route("/settings")]
-    Settings { },
     #[route("/:..segments")]
     PageNotFound { segments: Vec<String> },
 }
@@ -99,8 +95,9 @@ enum Route {
 #[component]
 fn Layout() -> Element {
     let mut slideout = use_signal(|| { false });
+    let mut slideout_content = use_signal(|| SlideoutContent::ChatLog);
     let nav = navigator();
-    let route = use_route::<Route>();
+    
     rsx! {
         div {
             style: "
@@ -117,38 +114,50 @@ fn Layout() -> Element {
                 },
                 img { src: HOME_ICON }
             },
-            if let Route::Settings {..} = &route {
-                button {
-                    onclick: move |_e: Event<MouseData>| {
-                        if nav.can_go_back() {
-                            nav.go_back();
-                        } else {
-                            nav.replace(crate::Route::NewChat {});
-                        }
-                    },
-                    img { src: BACK_ICON }
-                }
-            } else {
-                button {
-                    onclick: move |_e: Event<MouseData>| {
-                        nav.replace(crate::Route::Settings {});
-                    },
-                    img { src: SETTINGS_ICON }
-                }
+            button {
+                onclick: move |_e: Event<MouseData>| {
+                    slideout_content.set(SlideoutContent::Settings);
+                    slideout.set(true);
+                },
+                img { src: SETTINGS_ICON }
             },
             button {
-                onclick: move |_e: Event<MouseData>| { slideout.toggle() },
+                onclick: move |_e: Event<MouseData>| { 
+                    slideout_content.set(SlideoutContent::ChatLog);
+                    slideout.toggle();
+                },
                 img { src: CHATS_ICON }
             },
         }
         Slideout {
             open: slideout,
             children: rsx!{
-                ChatLog {}
+                match slideout_content() {
+                    SlideoutContent::ChatLog => rsx! {
+                        ChatLog {
+                            on_close: move |_| {
+                                slideout.set(false);
+                            }
+                        }
+                    },
+                    SlideoutContent::Settings => rsx! {
+                        Settings {
+                            on_close: move |_| {
+                                slideout.set(false);
+                            }
+                        }
+                    }
+                }
             },
         }
         Outlet::<Route> {}
     }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum SlideoutContent {
+    ChatLog,
+    Settings,
 }
 
 /// 404 page component shown when a user navigates to an invalid route.
