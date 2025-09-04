@@ -1,25 +1,29 @@
 //! Main chat interface component for MCMCPCP.
-//! 
+//!
 //! This module implements the primary chat interface where users interact with LLMs.
 //! It handles message display, streaming responses, tool execution, and manages the
 //! conversation flow between the user, LLM, and MCP tools.
-
-use std::sync::Arc;
 
 use dioxus::{
     logger::tracing::{info, warn},
     prelude::*,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::{app_settings::Chat, llm::{FunctionDelta, ToolCallDelta}, storage::{get_storage, Storage}, toolset::{ChatTools, StoryWriter, Toolset}, utils::{call_tools, tools_to_message_objects}, Route};
 use crate::{
+    Route,
+    app_settings::Chat,
+    llm::{FunctionDelta, ToolCallDelta},
+    storage::{Storage, get_storage},
+    toolset::{StoryWriter, Toolset},
+    utils::{call_tools, tools_to_message_objects},
+};
+use crate::{
+    llm::{ContentPart, LlmClient, Message, Tool}, // LLM types and client
     ui::{
-        message::MessageEl,      // Component for displaying individual messages
-        chat_input::ChatInput,   // Component for message input
+        chat_input::ChatInput, // Component for message input
+        message::MessageEl,    // Component for displaying individual messages
     },
-    llm::{ContentPart, LlmClient, Message, Tool},  // LLM types and client
-    mcp::host::MCPHost,  // MCP host for tool execution
 };
 
 #[component]
@@ -41,14 +45,14 @@ pub fn NewChat() -> Element {
 }
 
 /// Main chat interface component.
-/// 
+///
 /// This component provides the primary user interface for chatting with LLMs.
 /// It manages the conversation state, handles streaming responses, executes tools,
 /// and provides safety mechanisms to prevent runaway tool execution.
 #[component]
 pub fn Home(id: Signal<Option<u32>>) -> Element {
     let nav = navigator();
-    let mut toolset: Signal<Box<dyn Toolset>> = use_signal(|| {
+    let toolset: Signal<Box<dyn Toolset>> = use_signal(|| {
         // let ts: Box<dyn Toolset> = Box::new(ChatTools::new());
         let ts: Box<dyn Toolset> = Box::new(StoryWriter::new("".to_string()));
         ts
@@ -66,7 +70,9 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
         }
     });
     let _ = use_resource(move || async move {
-        let Some(id) = id() else { return; };
+        let Some(id) = id() else {
+            return;
+        };
         let storage = match get_storage().await {
             Ok(s) => Some(s),
             Err(e) => {
@@ -74,7 +80,9 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
                 None
             }
         };
-        let Some(storage) = storage else { return; };
+        let Some(storage) = storage else {
+            return;
+        };
         if let Ok(Some(ch)) = storage.get_chat(id).await {
             // if ch.chat_type == "story" {
             //     let v = chat().value.get("story")
@@ -101,50 +109,67 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
                 None
             }
         };
-        let Some(storage) = storage else { return None; };
+        let Some(storage) = storage else {
+            return None;
+        };
         let settings = storage.load_settings().await.unwrap();
         settings
     });
     // Initialize LLM client from settings
     let client = use_resource(move || async move {
-        let Some(settings) = settings() else { return None; };
-        let Some(settings) = settings else { return None; };
+        let Some(settings) = settings() else {
+            return None;
+        };
+        let Some(settings) = settings else {
+            return None;
+        };
         let api_base = settings.provider.get_api_url();
-        let api_key = settings.provider.get_api_key().unwrap_or_else(|| "".to_string());
+        let api_key = settings
+            .provider
+            .get_api_key()
+            .unwrap_or_else(|| "".to_string());
 
         // Create LLM client with configured API settings
         let lmc = LlmClient::new(api_base, api_key);
         Some(lmc)
     });
-    
+
     // Get selected model from settings
     let model = use_resource(move || async move {
-        let Some(settings) = settings() else { return None; };
-        let Some(settings) = settings else { return None; };
+        let Some(settings) = settings() else {
+            return None;
+        };
+        let Some(settings) = settings else {
+            return None;
+        };
         let model: Option<String> = settings.provider.get_model();
         model
     });
-    
+
     // Check if the application is properly configured
     let is_configured = use_resource(move || async move {
-        let Some(settings) = settings() else { return false; };
-        let Some(settings) = settings else { return false; };
+        let Some(settings) = settings() else {
+            return false;
+        };
+        let Some(settings) = settings else {
+            return false;
+        };
         let client_loaded = client().is_some();
         let model = model().flatten();
         let model_loaded = model.is_some();
         let configured = client_loaded && model_loaded && settings.provider.is_configured();
         configured
     });
-    
+
     // Track if the system is currently processing a request
     let mut busy = use_signal(|| false);
-    
+
     // Determine if the chat input should be disabled
     let disabled = use_resource(move || async move {
         let disabled = !is_configured().unwrap_or_else(|| false) || busy();
         disabled
     });
-    
+
     // Current streaming message content (for real-time display)
     let mut streaming_msg: Signal<Option<String>> = use_signal(|| None);
 
@@ -161,18 +186,20 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
         chat.with_mut(move |c| c.value = value);
         let Some(stg) = storage else { return Ok(()) };
         let new_chat_id = stg.save_chat(&chat()).await?;
-        chat.with_mut(|c| { c.id = Some(new_chat_id); });
+        chat.with_mut(|c| {
+            c.id = Some(new_chat_id);
+        });
         if id() != Some(new_chat_id) {
             nav.push(Route::ChatEl { id: new_chat_id });
         }
         anyhow::Ok(())
     };
-    
+
     // Flag to show warning when too many tool calls are made
     let mut tool_count_warning: Signal<bool> = use_signal(|| false);
 
     // Main loop for handling LLM responses and tool execution.
-    // 
+    //
     // This function manages the conversation flow:
     // 1. Sends the current conversation to the LLM
     // 2. Processes streaming responses (text and tool calls)
@@ -191,7 +218,7 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
         let Some(client) = client else {
             return Ok(());
         };
-        
+
         // Get MCP host and available tools
         let ts = &*toolset.read();
         let host = ts.get_mcp_host();
@@ -206,11 +233,11 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
             let mut stream = client.stream(&model, &chat.read().messages, &tools).await?;
             let mut text = "".to_string();
             let mut tool_calls = vec![];
-            
+
             // Process streaming response chunks
             while let Some(e) = stream.recv().await {
                 let Some(ch) = e.choices.first() else { break };
-                
+
                 // Handle text content (assistant response)
                 if let Some(t) = &ch.delta.content {
                     if !t.is_empty() {
@@ -219,18 +246,18 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
                         streaming_msg.set(Some(text.clone()));
                     }
                 }
-                
+
                 // Handle tool calls
                 if let Some(tools) = &ch.delta.tool_calls {
                     info!("{:?}", tools);
                     tool_calls.extend_from_slice(tools);
                 }
             }
-            
+
             // Clear streaming display once complete
             streaming_msg.set(None);
             let text = text.trim();
-            
+
             // Process the final response
             if !text.is_empty() {
                 // Handle special tool call format (fallback for some models)
@@ -245,13 +272,13 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
                     });
                 }
             }
-            
+
             // If no tools were called, we're done
             if tool_calls.is_empty() {
                 save_chat().await?;
                 return Ok(());
             }
-            
+
             // Execute the requested tools
             let new_messages = call_tools(tool_calls, host.clone()).await?;
             chat.with_mut(|c| {
@@ -269,7 +296,7 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
     };
 
     // Handles sending a new user message and starting the conversation loop.
-    // 
+    //
     // Adds the user's message to the chat history and initiates the LLM
     // response and tool execution loop.
     let send_msg = move |s: String| async move {
@@ -285,7 +312,7 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
     };
 
     // Renders the currently streaming message if one exists.
-    // 
+    //
     // Shows real-time LLM responses as they're being generated,
     // with proper Markdown rendering.
     let stream_output: Option<Element> = streaming_msg().map(move |m| {
@@ -300,16 +327,16 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
         div { class: "content",
             // Scrollable message area
             div {
-                // class: "left", 
+                // class: "left",
                 style: "flex-grow: 1; overflow: auto;",
                 // Render all messages in the conversation
                 for c in chat.read().messages.iter() {
                     MessageEl { msg: (*c).clone() }
                 }
-                
+
                 // Show streaming message if one is being generated
                 {stream_output}
-                
+
                 // Show tool count warning if too many tools have been executed
                 if tool_count_warning() {
                     div {
@@ -344,7 +371,7 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
             }
 
             // Fixed chat input area at the bottom
-            div { 
+            div {
                 style: "
                 flex-grow: 0;
                 padding: 1.5em;
@@ -358,7 +385,7 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
                                 return;
                             }
                         }
-                        
+
                         // Process the message
                         {
                             busy.set(true);
@@ -377,15 +404,13 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
 fn extract_wierd_tool_calls(text: &str) -> anyhow::Result<Option<ToolCallDelta>> {
     if text.starts_with("[TOOL_CALLS]") {
         let t = text.replace("[TOOL_CALLS]", "");
-        let parts: Vec<String> = t.split("<SPECIAL_32>")
-            .map(|s| s.into())
-            .collect();
-        return Ok(Some(ToolCallDelta { 
-            id: Some("...".into()), 
-            kind: Some("function".into()), 
-            function: Some(FunctionDelta { 
-                name: Some(parts[0].to_string()), 
-                arguments: Some(parts[1].clone()), 
+        let parts: Vec<String> = t.split("<SPECIAL_32>").map(|s| s.into()).collect();
+        return Ok(Some(ToolCallDelta {
+            id: Some("...".into()),
+            kind: Some("function".into()),
+            function: Some(FunctionDelta {
+                name: Some(parts[0].to_string()),
+                arguments: Some(parts[1].clone()),
             }),
         }));
     }
@@ -402,12 +427,12 @@ fn extract_wierd_tool_calls(text: &str) -> anyhow::Result<Option<ToolCallDelta>>
                     None
                 };
 
-                return Ok(Some(ToolCallDelta { 
-                    id: Some("...".into()), 
-                    kind: Some("function".into()), 
-                    function: Some(FunctionDelta { 
-                        name: Some(name.to_string()), 
-                        arguments, 
+                return Ok(Some(ToolCallDelta {
+                    id: Some("...".into()),
+                    kind: Some("function".into()),
+                    function: Some(FunctionDelta {
+                        name: Some(name.to_string()),
+                        arguments,
                     }),
                 }));
             }

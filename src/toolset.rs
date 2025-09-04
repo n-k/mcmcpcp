@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::bail;
 use dioxus::logger::tracing::warn;
-use serde_json::{json, Number, Value};
+use serde_json::{json, Value};
 
 use crate::mcp::{
     fetch::FetchMcpServer, host::{MCPHost, MCPServer}, McpTool, ToolResult, ToolResultContent
@@ -10,6 +10,7 @@ use crate::mcp::{
 
 #[async_trait::async_trait]
 pub trait Toolset {
+    #[allow(unused)]
     fn get_name(&self) -> &str;
 
     fn get_mcp_host(&self) -> Arc<MCPHost>;
@@ -23,6 +24,7 @@ pub struct ChatTools {
 }
 
 impl ChatTools {
+    #[allow(unused)]
     pub fn new() -> Self {
         let mut servers: HashMap<String, Box<dyn MCPServer>> = HashMap::new();
         servers.insert(
