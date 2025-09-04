@@ -6,13 +6,14 @@
 
 use std::sync::Arc;
 
+use dioxus::logger::tracing::warn;
 use serde_json::Value;
 
 use crate::llm::Function;
 use crate::llm::Message;
 use crate::llm::Tool;
 use crate::llm::ToolCallDelta;
-use crate::mcp::host::Host;
+use crate::mcp::host::MCPHost;
 use crate::mcp::ToolDescriptor;
 
 /// Converts MCP tool descriptors to LLM tool objects.
@@ -60,12 +61,13 @@ pub fn tools_to_message_objects(tools: Vec<ToolDescriptor>) -> Vec<Tool> {
 /// if any tool call fails
 pub async fn call_tools(
     tool_calls: Vec<ToolCallDelta>,
-    host: Arc<Host>,
+    host: Arc<MCPHost>,
 ) -> anyhow::Result<Vec<Message>> {
     let mut new_chat: Vec<Message> = vec![];
     
     // Process each tool call from the LLM
     for tc in tool_calls.into_iter() {
+        warn!("> Calling {tc:#?}");
         let Some(f) = tc.function.as_ref() else {
             continue; // Skip tool calls without function information
         };

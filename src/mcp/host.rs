@@ -5,14 +5,12 @@
 //! interacting with various MCP servers. It includes both external MCP servers
 //! and built-in functionality like web fetching.
 
-use anyhow::{Result, anyhow, bail};
-use html2md::{parse_html_custom, TagHandler, TagHandlerFactory};
 use serde_json::{Value, json};
 use std::{collections::HashMap, time::Duration};
 use tokio::sync::RwLock;
 
 use crate::mcp::{
-    McpTool, ServerSpec, ToolDescriptor, ToolResult, ToolResultContent, server::McpServer,
+    fetch::FetchMcpServer, server::_McpServer, McpTool, ServerSpec, ToolDescriptor, ToolResult,
 };
 
 /// Trait defining the interface for MCP servers.
@@ -21,7 +19,7 @@ use crate::mcp::{
 /// external process-based servers and built-in functionality to be treated
 /// uniformly by the host.
 #[async_trait::async_trait]
-pub trait _Server: Send + Sync {
+pub trait MCPServer: Send + Sync {
     /// Lists all tools provided by this server.
     /// 
     /// # Returns
@@ -36,211 +34,7 @@ pub trait _Server: Send + Sync {
     /// 
     /// # Returns
     /// The result of the RPC call as a JSON value
-    async fn rpc(&self, method: &str, params: Value) -> anyhow::Result<serde_json::Value>;
-}
-
-/// Built-in MCP server that provides web fetching functionality.
-/// 
-/// This server is always available and provides a "fetch" tool that can
-/// retrieve content from URLs. It's implemented as a built-in server to
-/// provide basic web access without requiring external MCP server setup.
-struct FetchMcpServer {}
-
-#[async_trait::async_trait]
-impl _Server for FetchMcpServer {
-    /// Returns the fetch tool definition.
-    /// 
-    /// Provides a single "fetch" tool that can retrieve content from URLs.
-    async fn list_tools(&self) -> Vec<McpTool> {
-        vec![
-            McpTool {
-                name: "fetch_raw_html".into(),
-                description: Some("Fetch the contents of a URL as raw HTML.".into()),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "url": {
-                            "type": "string",
-                            "description": "The URL to fetch"
-                        }
-                    },
-                    "required": ["url"]
-                }),
-            },
-            McpTool {
-                name: "fetch".into(),
-                description: Some("Fetch the contents of a URL.".into()),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "url": {
-                            "type": "string",
-                            "description": "The URL to fetch"
-                        }
-                    },
-                    "required": ["url"]
-                }),
-            },
-        ]
-    }
-
-    /// Handles RPC calls for the fetch server.
-    /// 
-    /// Currently only supports the "tools/call" method with the "fetch" tool.
-    /// The fetch tool retrieves content from the specified URL and returns it as text.
-    async fn rpc(&self, method: &str, params: Value) -> anyhow::Result<serde_json::Value> {
-        // Only support tool calls for this built-in server
-        if method != "tools/call" {
-            bail!("Error: unknown RPC method {method}");
-        }
-        
-        // Extract the tool name from parameters
-        let name = params
-            .get("name")
-            .map(|v| v.as_str())
-            .flatten()
-            .unwrap_or_else(|| "");
-            
-        // Only support the "fetch" tool
-        if name != "fetch" && name != "fetch_raw_html" {
-            bail!("Unknown tool: {name}")
-        };
-        
-        // Extract tool arguments
-        let params = params
-            .get("arguments")
-            .map(|v| v.clone())
-            .unwrap_or_else(|| json!({}));
-            
-        // Execute the fetch if URL is provided
-        if let Some(Value::String(url)) = params.get("url") {
-            let text = match _fetch(url.to_string()).await {
-                Ok(s) => s,
-                Err(e) => format!("Fetch error: {e:?}"),
-            };
-
-            let text = if name == "fetch" {
-                let mut handlers: HashMap<String, Box<dyn TagHandlerFactory>> = HashMap::new();
-                handlers.insert("style".to_string(), Box::new(CustomFactory));
-                handlers.insert("script".to_string(), Box::new(CustomFactory));
-                handlers.insert("link".to_string(), Box::new(CustomFactory));
-                handlers.insert("a".to_string(), Box::new(CustomFactory));
-                handlers.insert("img".to_string(), Box::new(CustomFactory));
-                handlers.insert("noscript".to_string(), Box::new(CustomFactory));
-                let md = parse_html_custom(&text, &handlers);
-                md
-            } else {
-                text
-            };
-            
-            // Return the result in MCP tool result format
-            return Ok(serde_json::to_value(ToolResult {
-                content: vec![ToolResultContent {
-                    r#type: "text".into(),
-                    text: Some(text),
-                    mime_type: None,
-                    data: None,
-                    resource: None,
-                }],
-                is_error: None,
-            })?);
-        }
-        
-        Ok(Value::Null)
-    }
-}
-
-/// Fetches content from a URL (WASM version).
-/// 
-/// Uses a CORS proxy service to bypass browser CORS restrictions when running
-/// in WASM. The fetch is performed in a spawned local task and the result is
-/// communicated back through a oneshot channel.
-/// 
-/// # Arguments
-/// * `url` - The URL to fetch content from
-/// 
-/// # Returns
-/// The fetched content as a string, or an error message if the fetch fails
-#[cfg(target_arch = "wasm32")]
-async fn _fetch(url: String) -> anyhow::Result<String> {
-    use gloo_net::http::Request;
-    use tokio::sync::oneshot;
-    use dioxus::logger::tracing::warn;
-    use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
-    
-    // Create a channel to receive the result from the spawned task
-    let (tx, rx) = oneshot::channel::<String>();
-    
-    // Spawn a local task to perform the fetch (required for WASM)
-    wasm_bindgen_futures::spawn_local(async move {
-        use dioxus::logger::tracing::warn;
-
-        // Use CORS proxy to bypass browser restrictions
-        let encoded = utf8_percent_encode(&url, NON_ALPHANUMERIC).to_string();
-        let _url = format!("https://api.allorigins.win/raw?url={encoded}");
-        let req = Request::get(&_url)
-            .send()
-            .await;
-            
-        let text = match req {
-            Ok(req) => {
-                let response = req.text().await;
-                match response {
-                    Ok(s) => s,
-                    Err(e) => format!("Error in builtin/fetch: {e:?}")
-                }
-            }
-            Err(e) => format!("Error in builtin/fetch: {e:?}")
-        };
-        
-        // Send the result back through the channel
-        if tx.send(text).is_err() {
-            warn!("Receiver dropped before message was sent");
-        }
-    });
-
-    // Wait for the result from the spawned task
-    let s = match rx.await {
-        Ok(val) => val,
-        Err(_e) => "Error fetching data during tool call!".to_string(),
-    };
-    Ok(s)
-}
-
-/// Fetches content from a URL (native version).
-/// 
-/// Uses reqwest to directly fetch content from the URL without CORS restrictions.
-/// This is simpler than the WASM version since native applications don't have
-/// browser security restrictions.
-/// 
-/// # Arguments
-/// * `url` - The URL to fetch content from
-/// 
-/// # Returns
-/// The fetched content as a string, or an error if the fetch fails
-#[cfg(not(target_arch = "wasm32"))]
-async fn _fetch(url: String) -> anyhow::Result<String> {
-    reqwest::Client::new()
-        .get(&url)
-        .send()
-        .await?
-        .text()
-        .await
-        .map_err(|e| anyhow!("{e:?}"))
-}
-
-struct CustomFactory;
-impl TagHandlerFactory for CustomFactory {
-    fn instantiate(&self) -> Box<dyn TagHandler> { Box::new(Dummy) }
-}
-
-struct Dummy;
-impl TagHandler for Dummy {
-    fn handle(&mut self, _tag: &html2md::Handle, _printer: &mut html2md::StructuredPrinter) {}
-
-    fn after_handle(&mut self, _printer: &mut html2md::StructuredPrinter) {}
-
-    fn skip_descendants(&self) -> bool {true}
+    async fn rpc(&mut self, method: &str, params: Value) -> anyhow::Result<serde_json::Value>;
 }
 
 
@@ -249,9 +43,9 @@ impl TagHandler for Dummy {
 /// The Host maintains a collection of MCP servers (both built-in and external),
 /// handles tool discovery across all servers, and routes tool calls to the
 /// appropriate server. It provides timeout configuration for server operations.
-pub struct Host {
+pub struct MCPHost {
     /// Map of server ID to server implementation, protected by RwLock for concurrent access
-    servers: RwLock<HashMap<String, Box<dyn _Server>>>,
+    pub servers: RwLock<HashMap<String, Box<dyn MCPServer>>>,
     /// Timeout for individual RPC requests to servers
     #[allow(unused)]
     pub request_timeout: Duration,
@@ -260,7 +54,7 @@ pub struct Host {
     pub startup_timeout: Duration,
 }
 
-impl Host {
+impl MCPHost {
     /// Creates a new MCP Host with the specified timeouts.
     /// 
     /// Initializes the host with a built-in fetch server that provides web access
@@ -273,10 +67,34 @@ impl Host {
     /// # Returns
     /// A new Host instance ready to manage MCP servers
     pub fn new(request_timeout: Duration, startup_timeout: Duration) -> Self {
-        let mut servers: HashMap<String, Box<dyn _Server>> = HashMap::new();
+        let mut servers: HashMap<String, Box<dyn MCPServer>> = HashMap::new();
         // Add the built-in fetch server
         servers.insert("builtin".into(), Box::new(FetchMcpServer {}));
 
+        Self {
+            servers: RwLock::new(servers),
+            request_timeout,
+            startup_timeout,
+        }
+    }
+
+    /// Creates a new MCP Host with the specified tools and timeouts.
+    /// 
+    /// Initializes the host with a built-in fetch server that provides web access
+    /// functionality. Additional external MCP servers can be added later.
+    /// 
+    /// # Arguments
+    /// * `servers` - MCP servers
+    /// * `request_timeout` - Timeout for individual RPC requests
+    /// * `startup_timeout` - Timeout for server startup/initialization
+    /// 
+    /// # Returns
+    /// A new Host instance ready to manage MCP servers
+    pub fn new_with_tools(
+        servers: HashMap<String, Box<dyn MCPServer>>,
+        request_timeout: Duration, 
+        startup_timeout: Duration
+    ) -> Self {
         Self {
             servers: RwLock::new(servers),
             request_timeout,
@@ -295,9 +113,9 @@ impl Host {
     /// 
     /// # Returns
     /// Ok(()) if the server was successfully added, or an error if spawning failed
-    pub async fn add_server(&self, spec: ServerSpec) -> Result<()> {
+    pub async fn add_server(&self, spec: ServerSpec) -> anyhow::Result<()> {
         let server =
-            McpServer::spawn(spec.clone(), self.request_timeout, self.startup_timeout).await?;
+            _McpServer::spawn(spec.clone(), self.request_timeout, self.startup_timeout).await?;
         self.servers.write().await.insert(spec.id, Box::new(server));
         Ok(())
     }
@@ -340,10 +158,10 @@ impl Host {
     /// 
     /// # Returns
     /// The result of the RPC call, or an error if the server is not found or the call fails
-    pub async fn invoke(&self, server_id: &str, method: &str, params: Value) -> Result<Value> {
-        let servers = self.servers.read().await;
+    pub async fn invoke(&self, server_id: &str, method: &str, params: Value) -> anyhow::Result<Value> {
+        let mut servers = self.servers.write().await;
         let s = servers
-            .get(server_id)
+            .get_mut(server_id)
             .ok_or_else(|| anyhow::anyhow!("unknown server {server_id}"))?;
         s.rpc(method, params).await
     }
@@ -365,7 +183,7 @@ impl Host {
         server_id: &str,
         tool_name: &str,
         arguments: Value,
-    ) -> Result<ToolResult> {
+    ) -> anyhow::Result<ToolResult> {
         // Format parameters for the tools/call RPC method
         let params = json!({
             "name": tool_name,

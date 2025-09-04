@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::llm::Message;
 
@@ -60,4 +61,5 @@ pub struct Chat {
     pub id: Option<u32>,
     pub chat_type: String,
     pub messages: Vec<Message>,
+    pub value: Value,
 }

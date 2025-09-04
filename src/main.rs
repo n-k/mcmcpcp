@@ -21,12 +21,13 @@ fn main() {
     // Create an MCP Host instance with timeouts:
     // - 10 second timeout for individual operations
     // - 30 second timeout for server startup/initialization
-    let host = Arc::new(mcmcpcp::mcp::host::Host::new(
-        Duration::from_millis(10_000),  // Operation timeout
-        Duration::from_millis(30_000),  // Server startup timeout
-    ));
+    // let host = Arc::new(mcmcpcp::mcp::host::MCPHost::new(
+    //     Duration::from_millis(10_000),  // Operation timeout
+    //     Duration::from_millis(30_000),  // Server startup timeout
+    // ));
 
     // Launch the Dioxus application with the MCP Host as shared context
     // This allows all components to access the MCP Host for tool execution
-    LaunchBuilder::new().with_context(host).launch(mcmcpcp::App)
+    // LaunchBuilder::new().with_context(host).launch(mcmcpcp::App)
+    dioxus::launch(mcmcpcp::App)
 }

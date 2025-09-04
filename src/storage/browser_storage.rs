@@ -148,7 +148,7 @@ impl Storage for IdbStorage {
             .await
             .map_err(|e| anyhow!("{e:?}"))?;
 
-        Ok(1)
+        Ok(put_res.as_f64().map(|n| n as u32).unwrap())
     }
     
     async fn list_chats(&self) -> anyhow::Result<Vec<Chat>> {

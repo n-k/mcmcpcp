@@ -19,6 +19,7 @@ mod jsonrpc;    // JSON-RPC protocol implementation
 mod server;     // Individual MCP server management
 #[cfg(not(target_arch = "wasm32"))]
 mod transport;  // Process-based transport (native platforms only)
+pub mod fetch;      // built-in fetch MCP server
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -81,7 +82,7 @@ pub struct ToolResult {
 /// 
 /// Content can be text, binary data, or references to resources,
 /// with optional MIME type information for proper handling.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolResultContent {
     /// Type of content (e.g., "text", "image", "resource")

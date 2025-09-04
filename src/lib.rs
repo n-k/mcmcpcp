@@ -21,6 +21,7 @@ mod md2rsx;     // Markdown to RSX conversion utilities
 mod ui;         // User interface components
 mod utils;      // Utility functions for tool handling
 mod storage;    // DB for settings, chats etc
+mod toolset;    // specialised toolsets like storywriting, RP, coding ...
 
 use app_settings::AppSettings;
 use ui::home::NewChat;

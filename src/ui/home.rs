@@ -10,16 +10,16 @@ use dioxus::{
     logger::tracing::{info, warn},
     prelude::*,
 };
-use serde_json::Value;
+use serde_json::{json, Value};
 
-use crate::{app_settings::Chat, llm::{FunctionDelta, ToolCallDelta}, storage::{get_storage, Storage}, utils::{call_tools, tools_to_message_objects}, Route};
+use crate::{app_settings::Chat, llm::{FunctionDelta, ToolCallDelta}, storage::{get_storage, Storage}, toolset::{ChatTools, StoryWriter, Toolset}, utils::{call_tools, tools_to_message_objects}, Route};
 use crate::{
     ui::{
         message::MessageEl,      // Component for displaying individual messages
         chat_input::ChatInput,   // Component for message input
     },
     llm::{ContentPart, LlmClient, Message, Tool},  // LLM types and client
-    mcp::host::Host,  // MCP host for tool execution
+    mcp::host::MCPHost,  // MCP host for tool execution
 };
 
 #[component]
@@ -48,7 +48,11 @@ pub fn NewChat() -> Element {
 #[component]
 pub fn Home(id: Signal<Option<u32>>) -> Element {
     let nav = navigator();
-    // Chat conversation history
+    let mut toolset: Signal<Box<dyn Toolset>> = use_signal(|| {
+        // let ts: Box<dyn Toolset> = Box::new(ChatTools::new());
+        let ts: Box<dyn Toolset> = Box::new(StoryWriter::new("".to_string()));
+        ts
+    });
     let mut chat: Signal<Chat> = use_signal(|| {
         Chat {
             id: None,
@@ -58,6 +62,7 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
                     You have access to tools which you can call to help the user in the user's task."
                     .into(),
             }],
+            value: json!({}),
         }
     });
     let _ = use_resource(move || async move {
@@ -71,6 +76,20 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
         };
         let Some(storage) = storage else { return; };
         if let Ok(Some(ch)) = storage.get_chat(id).await {
+            // if ch.chat_type == "story" {
+            //     let v = chat().value.get("story")
+            //         .map(|v| v.clone())
+            //         .unwrap_or_else(|| Value::String("".to_string()))
+            //         .as_str()
+            //         .unwrap_or_else(|| "")
+            //         .to_string();
+            //     let ts: Box<dyn Toolset> = Box::new(StoryWriter::new(v));
+            //     toolset.set(ts);
+            // } else {
+            //     let ts: Box<dyn Toolset> = Box::new(ChatTools::new());
+            //     toolset.set(ts);
+            // }
+
             chat.set(ch);
         }
     });
@@ -137,6 +156,9 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
                 None
             }
         };
+        let ts = &*toolset.read();
+        let value = ts.get_state().await;
+        chat.with_mut(move |c| c.value = value);
         let Some(stg) = storage else { return Ok(()) };
         let new_chat_id = stg.save_chat(&chat()).await?;
         chat.with_mut(|c| { c.id = Some(new_chat_id); });
@@ -171,8 +193,11 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
         };
         
         // Get MCP host and available tools
-        let host = consume_context::<Arc<Host>>();
+        let ts = &*toolset.read();
+        let host = ts.get_mcp_host();
         let tools = host.list_tools().await;
+        // let host = consume_context::<Arc<MCPHost>>();
+        // let tools = host.list_tools().await;
         let tools: Vec<Tool> = tools_to_message_objects(tools);
 
         let mut count = 0u8; // Safety counter to prevent infinite loops
@@ -223,8 +248,7 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
             
             // If no tools were called, we're done
             if tool_calls.is_empty() {
-                let save_res = save_chat().await;
-                warn!("Save: {save_res:?}");
+                save_chat().await?;
                 return Ok(());
             }
             
@@ -269,12 +293,15 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
             div { class: "message ai-message", {crate::md2rsx::markdown_to_rsx(&m)} }
         }
     });
+    let tool_value = chat().value;
 
     // Render the main chat interface
     rsx! {
         div { class: "content",
             // Scrollable message area
-            div { style: "flex-grow: 1; overflow: auto;",
+            div {
+                // class: "left", 
+                style: "flex-grow: 1; overflow: auto;",
                 // Render all messages in the conversation
                 for c in chat.read().messages.iter() {
                     MessageEl { msg: (*c).clone() }
@@ -308,8 +335,20 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
                 }
             }
 
+            div {
+                style: "
+                height: 6em;
+                flex-grow: 0;
+                ",
+                "{tool_value:?}"
+            }
+
             // Fixed chat input area at the bottom
-            div { style: "flex-grow: 0",
+            div { 
+                style: "
+                flex-grow: 0;
+                padding: 1.5em;
+                ",
                 ChatInput {
                     disabled: disabled().unwrap_or_else(|| true),
                     on_send: Callback::new(move |s: String| async move {
