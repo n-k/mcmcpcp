@@ -58,15 +58,15 @@ pub struct StoryWriter {
 }
 
 impl StoryWriter {
-    pub fn new(story: String,) -> Self {
+    pub fn new(metadata: StoryMetadata) -> Self {
         let mut servers: HashMap<String, Box<dyn MCPServer>> = HashMap::new();
         servers.insert(
             "fetch".into(),
             Box::new(FetchMcpServer {}),
         );
         servers.insert(
-            "writer".into(),
-            Box::new(StoryWriterMcpServer { story }),
+            "creative_writer".into(),
+            Box::new(CreativeWriterMcpServer::new(metadata)),
         );
         let host =
             MCPHost::new_with_tools(servers, Duration::from_secs(10), Duration::from_secs(10));
@@ -77,7 +77,7 @@ impl StoryWriter {
 #[async_trait::async_trait]
 impl Toolset for StoryWriter {
     fn get_name(&self) -> &str {
-        "Story Writer"
+        "Creative Story Writer"
     }
 
     fn get_mcp_host(&self) -> Arc<MCPHost> {
@@ -86,31 +86,119 @@ impl Toolset for StoryWriter {
 
     async fn get_state(&self) -> Value {
         let mut map = self.host.servers.write().await;
-        let Some(server) = map.get_mut("writer") else {
-            return json!({"story": ""});
+        let Some(server) = map.get_mut("creative_writer") else {
+            return json!({"story": "", "characters": [], "chapters": [], "world_elements": []});
         };
-        server.rpc("get_value", json!({})).await
+        server.rpc("get_state", json!({})).await
             .unwrap_or_else(|e| {
-                warn!("Error getting value from MCP server: {e:?}");
+                warn!("Error getting state from MCP server: {e:?}");
                 json!({})
             })
     }
 }
 
-pub struct StoryWriterMcpServer {
-    pub story: String,
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Character {
+    pub name: String,
+    pub description: String,
+    pub traits: Vec<String>,
+    pub backstory: String,
+    pub goals: String,
+    pub relationships: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Chapter {
+    pub title: String,
+    pub content: String,
+    pub summary: String,
+    pub word_count: usize,
+    pub plot_points: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WorldElement {
+    pub name: String,
+    pub element_type: String, // "location", "culture", "history", "magic_system", etc.
+    pub description: String,
+    pub properties: HashMap<String, String>,
+}
+
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct StoryMetadata {
+    pub title: String,
+    pub genre: String,
+    pub themes: Vec<String>,
+    pub target_audience: String,
+    pub synopsis: String,
+}
+
+pub struct CreativeWriterMcpServer {
+    // pub story: String,
+    pub metadata: StoryMetadata,
+    pub characters: HashMap<String, Character>,
+    pub chapters: Vec<Chapter>,
+    pub world_elements: HashMap<String, WorldElement>,
+    pub story_notes: Vec<String>,
+    pub plot_points: Vec<String>,
+}
+
+impl CreativeWriterMcpServer {
+    pub fn new(metadata: StoryMetadata) -> Self {
+        Self {
+            metadata,
+            // : StoryMetadata {
+            //     title: "Untitled Story".to_string(),
+            //     genre: "Fiction".to_string(),
+            //     themes: vec![],
+            //     target_audience: "General".to_string(),
+            //     synopsis: "".to_string(),
+            // },
+            characters: HashMap::new(),
+            chapters: vec![],
+            world_elements: HashMap::new(),
+            story_notes: vec![],
+            plot_points: vec![],
+        }
+    }
 }
 
 #[async_trait::async_trait]
-impl MCPServer for StoryWriterMcpServer {
-    /// Returns the fetch tool definition.
-    ///
-    /// Provides a single "fetch" tool that can retrieve content from URLs.
+impl MCPServer for CreativeWriterMcpServer {
     async fn list_tools(&self) -> Vec<McpTool> {
         vec![
+            // Story Structure & Management
             McpTool {
-                name: "count_paragraphs".into(),
-                description: Some("Count number of paragraphs in story.".into()),
+                name: "update_story_metadata".into(),
+                description: Some("Update story metadata including title, genre, themes, target audience, and synopsis.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "Story title"},
+                        "genre": {"type": "string", "description": "Story genre"},
+                        "themes": {"type": "array", "items": {"type": "string"}, "description": "Story themes"},
+                        "target_audience": {"type": "string", "description": "Target audience"},
+                        "synopsis": {"type": "string", "description": "Story synopsis"}
+                    }
+                }),
+            },
+            McpTool {
+                name: "create_chapter".into(),
+                description: Some("Create a new chapter with title, content, and metadata.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "Chapter title"},
+                        "content": {"type": "string", "description": "Chapter content"},
+                        "summary": {"type": "string", "description": "Chapter summary"},
+                        "plot_points": {"type": "array", "items": {"type": "string"}, "description": "Key plot points in this chapter"}
+                    },
+                    "required": ["title", "content"]
+                }),
+            },
+            McpTool {
+                name: "get_story_outline".into(),
+                description: Some("Get the complete story structure including chapters, word counts, and summaries.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {},
@@ -118,167 +206,265 @@ impl MCPServer for StoryWriterMcpServer {
                 }),
             },
             McpTool {
-                name: "get_paragraphs".into(),
-                description: Some("Get the contents of one or more paragraphs of the story.".into()),
+                name: "get_story_statistics".into(),
+                description: Some("Get story statistics including total word count, chapter count, character count, and reading time estimate.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }),
+            },
+            
+            // Character Development
+            McpTool {
+                name: "create_character".into(),
+                description: Some("Create a new character with detailed profile including traits, backstory, and goals.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
-                        "paragraph_number": {
-                            "type": "number",
-                            "description": "Which paragraph to start from. Note that paragraphs start counting at 0"
-                        },
-                        "paragraph_count": {
-                            "type": "number",
-                            "description": "How many paragraphs to get."
-                        }
+                        "name": {"type": "string", "description": "Character name"},
+                        "description": {"type": "string", "description": "Physical and personality description"},
+                        "traits": {"type": "array", "items": {"type": "string"}, "description": "Character traits"},
+                        "backstory": {"type": "string", "description": "Character backstory"},
+                        "goals": {"type": "string", "description": "Character goals and motivations"}
                     },
-                    "required": ["paragraph_number"]
+                    "required": ["name", "description"]
                 }),
             },
             McpTool {
-                name: "rewrite_paragraph".into(),
-                description: Some("Rewrite one paragraph completely.".into()),
+                name: "update_character".into(),
+                description: Some("Update an existing character's details.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
-                        "paragraph_number": {
-                            "type": "number",
-                            "description": "Which paragraph to rewrite. Note that paragraphs start counting at 0"
-                        },
-                        "new_contents": {
-                            "type": "string",
-                            "description": "New contents of the paragraph."
-                        }
+                        "name": {"type": "string", "description": "Character name"},
+                        "description": {"type": "string", "description": "Updated description"},
+                        "traits": {"type": "array", "items": {"type": "string"}, "description": "Updated traits"},
+                        "backstory": {"type": "string", "description": "Updated backstory"},
+                        "goals": {"type": "string", "description": "Updated goals"}
                     },
-                    "required": ["paragraph_number", "new_contents"]
+                    "required": ["name"]
                 }),
             },
             McpTool {
-                name: "delete_paragraphs".into(),
-                description: Some(
-                    "Delete one or more paragraphs of the story. 
-                Note that all paragraph numbers of the story will change. 
-                You must reread the story."
-                        .into(),
-                ),
+                name: "add_character_relationship".into(),
+                description: Some("Add or update a relationship between two characters.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
-                        "paragraph_number": {
-                            "type": "number",
-                            "description": "Which paragraph to start from. Note that paragraphs start counting at 0"
-                        },
-                        "paragraph_count": {
-                            "type": "number",
-                            "description": "How many paragraphs to delete. Default is 1"
-                        }
+                        "character1": {"type": "string", "description": "First character name"},
+                        "character2": {"type": "string", "description": "Second character name"},
+                        "relationship": {"type": "string", "description": "Description of their relationship"}
                     },
-                    "required": ["paragraph_number"]
+                    "required": ["character1", "character2", "relationship"]
+                }),
+            },
+            McpTool {
+                name: "get_character_details".into(),
+                description: Some("Get detailed information about a specific character.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Character name"}
+                    },
+                    "required": ["name"]
+                }),
+            },
+            McpTool {
+                name: "list_characters".into(),
+                description: Some("List all characters with basic information.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }),
+            },
+            
+            // World-building
+            McpTool {
+                name: "create_world_element".into(),
+                description: Some("Create a world-building element such as a location, culture, historical event, or magic system.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Element name"},
+                        "element_type": {"type": "string", "description": "Type: location, culture, history, magic_system, technology, etc."},
+                        "description": {"type": "string", "description": "Detailed description"},
+                        "properties": {"type": "object", "description": "Additional properties as key-value pairs"}
+                    },
+                    "required": ["name", "element_type", "description"]
+                }),
+            },
+            McpTool {
+                name: "get_world_element".into(),
+                description: Some("Get details about a specific world element.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Element name"}
+                    },
+                    "required": ["name"]
+                }),
+            },
+            McpTool {
+                name: "list_world_elements".into(),
+                description: Some("List all world elements, optionally filtered by type.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "element_type": {"type": "string", "description": "Filter by element type (optional)"}
+                    }
+                }),
+            },
+            
+            // Plot & Narrative
+            McpTool {
+                name: "add_plot_point".into(),
+                description: Some("Add a major plot point or story event.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "plot_point": {"type": "string", "description": "Description of the plot point"}
+                    },
+                    "required": ["plot_point"]
+                }),
+            },
+            McpTool {
+                name: "analyze_story_structure".into(),
+                description: Some("Analyze the current story structure and provide feedback on narrative arc.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }),
+            },
+            
+            // Writing Enhancement
+            McpTool {
+                name: "analyze_chapter_content".into(),
+                description: Some("Analyze a specific chapter for pacing, style, and narrative elements.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "chapter_index": {"type": "number", "description": "Chapter index (0-based)"}
+                    },
+                    "required": ["chapter_index"]
+                }),
+            },
+            McpTool {
+                name: "suggest_character_development".into(),
+                description: Some("Suggest character development opportunities based on current story.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "character_name": {"type": "string", "description": "Character to analyze (optional)"}
+                    }
+                }),
+            },
+            
+            // Notes & Organization
+            McpTool {
+                name: "add_story_note".into(),
+                description: Some("Add a note or reminder about the story.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "note": {"type": "string", "description": "Note content"}
+                    },
+                    "required": ["note"]
+                }),
+            },
+            McpTool {
+                name: "get_story_notes".into(),
+                description: Some("Get all story notes.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }),
+            },
+            
+            // Export & Formatting
+            McpTool {
+                name: "export_story".into(),
+                description: Some("Export the complete story in a formatted structure.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "format": {"type": "string", "description": "Export format: 'markdown', 'plain_text', or 'structured'", "default": "markdown"}
+                    }
                 }),
             },
         ]
     }
 
-    /// Handles RPC calls for the writer server.
-    ///
-    /// Currently only supports the "tools/call" method with the "fetch" tool.
-    /// The fetch tool retrieves content from the specified URL and returns it as text.
     async fn rpc(&mut self, method: &str, params: Value) -> anyhow::Result<serde_json::Value> {
-        // Special method to get value
-        if method == "get_value" {
-            return Ok(json!({"story": &self.story}));
+        if method == "get_state" {
+            return Ok(json!({
+                "metadata": &self.metadata,
+                "characters": &self.characters,
+                "chapters": &self.chapters,
+                "world_elements": &self.world_elements,
+                "story_notes": &self.story_notes,
+                "plot_points": &self.plot_points
+            }));
         }
 
-        // Only support tool calls for this built-in server
         if method != "tools/call" {
             bail!("Error: unknown RPC method {method}");
         }
 
-        // Extract the tool name from parameters
         let name = params
             .get("name")
-            .map(|v| v.as_str())
-            .flatten()
-            .unwrap_or_else(|| "");
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
 
-        if ![
-            "count_paragraphs",
-            "get_paragraphs",
-            "rewrite_paragraph",
-            "delete_paragraphs",
-        ]
-        .contains(&name)
-        {
-            bail!("Unknown tool: {name}");
-        }
-
-        // Extract tool arguments
-        let params = params
+        let args = params
             .get("arguments")
-            .map(|v| v.clone())
+            .cloned()
             .unwrap_or_else(|| json!({}));
 
-        let result: ToolResult = if name == "count_paragraphs" {
-            self.count_paragraphs()
-        } else if name == "get_paragraphs" {
-            let idx = params.get("paragraph_number")
-                .map(|v| v.clone())
-                .unwrap_or_else(|| Value::Number(0.into()))
-                .as_number()
-                .map(|v| v.clone())
-                .unwrap_or_else(|| 0u32.into())
-                .as_u64()
-                .unwrap() as usize;
-            let count = params.get("paragraph_count")
-                .map(|v| v.clone())
-                .unwrap_or_else(|| Value::Number(0.into()))
-                .as_number()
-                .map(|v| v.clone())
-                .unwrap_or_else(|| 0u32.into())
-                .as_u64()
-                .unwrap() as usize;
-            self.get_paragraphs(idx, count)
-        } else if name == "rewrite_paragraph" {
-            let idx = params.get("paragraph_number")
-                .map(|v| v.clone())
-                .unwrap_or_else(|| Value::Number(0.into()))
-                .as_number()
-                .map(|v| v.clone())
-                .unwrap_or_else(|| 0u32.into())
-                .as_u64()
-                .unwrap() as usize;
-            let new_contents = params
-                .get("new_contents")
-                .map(|v| v.as_str())
-                .flatten()
-                .unwrap_or_else(|| "");
-            self.rewrite_paragraph(idx, new_contents)
-        } else if name == "delete_paragraphs" {
-            let idx = params.get("paragraph_number")
-                .map(|v| v.clone())
-                .unwrap_or_else(|| Value::Number(0.into()))
-                .as_number()
-                .map(|v| v.clone())
-                .unwrap_or_else(|| 0u32.into())
-                .as_u64()
-                .unwrap() as usize;
-            let count = params.get("paragraph_count")
-                .map(|v| v.clone())
-                .unwrap_or_else(|| Value::Number(0.into()))
-                .as_number()
-                .map(|v| v.clone())
-                .unwrap_or_else(|| 0u32.into())
-                .as_u64()
-                .unwrap() as usize;
-            self.delete_paragraphs(idx, count)
-        } else {
-            ToolResult { 
+        let result = match name {
+            // Story Structure & Management
+            "update_story_metadata" => self.update_story_metadata(args),
+            "create_chapter" => self.create_chapter(args),
+            "get_story_outline" => self.get_story_outline(),
+            "get_story_statistics" => self.get_story_statistics(),
+            
+            // Character Development
+            "create_character" => self.create_character(args),
+            "update_character" => self.update_character(args),
+            "add_character_relationship" => self.add_character_relationship(args),
+            "get_character_details" => self.get_character_details(args),
+            "list_characters" => self.list_characters(),
+            
+            // World-building
+            "create_world_element" => self.create_world_element(args),
+            "get_world_element" => self.get_world_element(args),
+            "list_world_elements" => self.list_world_elements(args),
+            
+            // Plot & Narrative
+            "add_plot_point" => self.add_plot_point(args),
+            "analyze_story_structure" => self.analyze_story_structure(),
+            
+            // Writing Enhancement
+            "analyze_chapter_content" => self.analyze_chapter_content(args),
+            "suggest_character_development" => self.suggest_character_development(args),
+            
+            // Notes & Organization
+            "add_story_note" => self.add_story_note(args),
+            "get_story_notes" => self.get_story_notes(),
+            
+            // Export & Formatting
+            "export_story" => self.export_story(args),
+            
+            _ => ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".to_string(),
-                    text: Some("".to_string()),
+                    text: Some(format!("Unknown tool: {name}")),
                     ..Default::default()
-                }], 
-                is_error: Some(false),
+                }],
+                is_error: Some(true),
             }
         };
 
@@ -286,65 +472,786 @@ impl MCPServer for StoryWriterMcpServer {
     }
 }
 
-impl StoryWriterMcpServer {
-    fn get_paras(&self) -> Vec<String> {
-        self.story.lines().map(|s| s.to_string()).collect()
-    }
+impl CreativeWriterMcpServer {
+    // Story Structure & Management Methods
+    fn update_story_metadata(&mut self, args: Value) -> ToolResult {
+        if let Some(title) = args.get("title").and_then(|v| v.as_str()) {
+            self.metadata.title = title.to_string();
+        }
+        if let Some(genre) = args.get("genre").and_then(|v| v.as_str()) {
+            self.metadata.genre = genre.to_string();
+        }
+        if let Some(themes) = args.get("themes").and_then(|v| v.as_array()) {
+            self.metadata.themes = themes.iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.to_string())
+                .collect();
+        }
+        if let Some(audience) = args.get("target_audience").and_then(|v| v.as_str()) {
+            self.metadata.target_audience = audience.to_string();
+        }
+        if let Some(synopsis) = args.get("synopsis").and_then(|v| v.as_str()) {
+            self.metadata.synopsis = synopsis.to_string();
+        }
 
-    fn count_paragraphs(&self) -> ToolResult {
-        let paras = self.get_paras();
-        let count = paras.len();
-        ToolResult { 
+        ToolResult {
             content: vec![ToolResultContent {
                 r#type: "text".to_string(),
-                text: Some(format!(" There are currently {count} paragraphs in the story.")),
+                text: Some("Story metadata updated successfully.".to_string()),
                 ..Default::default()
-            }], 
+            }],
             is_error: Some(false),
         }
     }
 
-    fn get_paragraphs(&self, idx: usize, count: usize) -> ToolResult {
-        let paras = self.get_paras();
-        let paras = &paras.as_slice()[idx .. idx+count];
-        ToolResult { 
+    fn create_chapter(&mut self, args: Value) -> ToolResult {
+        let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("Untitled Chapter").to_string();
+        let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let summary = args.get("summary").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let plot_points = args.get("plot_points")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect())
+            .unwrap_or_else(Vec::new);
+
+        let word_count = content.split_whitespace().count();
+        
+        let chapter = Chapter {
+            title: title.clone(),
+            content,
+            summary,
+            word_count,
+            plot_points,
+        };
+
+        self.chapters.push(chapter);
+
+        ToolResult {
             content: vec![ToolResultContent {
                 r#type: "text".to_string(),
-                text: Some(paras.to_vec().join("\n")),
+                text: Some(format!("Chapter '{}' created successfully with {} words.", title, word_count)),
                 ..Default::default()
-            }], 
+            }],
             is_error: Some(false),
         }
     }
 
-    fn rewrite_paragraph(&mut self, idx: usize, c: &str) -> ToolResult {
-        let mut paras = self.get_paras();
-        if idx >= paras.len() {
-            paras.push(c.to_string());
+    fn get_story_outline(&self) -> ToolResult {
+        let mut outline = format!("# Story Outline: {}\n\n", self.metadata.title);
+        outline.push_str(&format!("**Genre:** {}\n", self.metadata.genre));
+        outline.push_str(&format!("**Themes:** {}\n", self.metadata.themes.join(", ")));
+        outline.push_str(&format!("**Target Audience:** {}\n\n", self.metadata.target_audience));
+        
+        if !self.metadata.synopsis.is_empty() {
+            outline.push_str(&format!("**Synopsis:** {}\n\n", self.metadata.synopsis));
+        }
+
+        outline.push_str("## Chapters:\n\n");
+        for (i, chapter) in self.chapters.iter().enumerate() {
+            outline.push_str(&format!("{}. **{}** ({} words)\n", i + 1, chapter.title, chapter.word_count));
+            if !chapter.summary.is_empty() {
+                outline.push_str(&format!("   Summary: {}\n", chapter.summary));
+            }
+            if !chapter.plot_points.is_empty() {
+                outline.push_str(&format!("   Plot Points: {}\n", chapter.plot_points.join(", ")));
+            }
+            outline.push('\n');
+        }
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(outline),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn get_story_statistics(&self) -> ToolResult {
+        let total_words: usize = self.chapters.iter().map(|c| c.word_count).sum();
+        let reading_time = (total_words as f64 / 250.0).ceil() as usize; // Assuming 250 words per minute
+        
+        let stats = format!(
+            "# Story Statistics\n\n\
+            **Total Word Count:** {}\n\
+            **Chapter Count:** {}\n\
+            **Character Count:** {}\n\
+            **World Elements:** {}\n\
+            **Plot Points:** {}\n\
+            **Estimated Reading Time:** {} minutes\n\
+            **Story Notes:** {}",
+            total_words,
+            self.chapters.len(),
+            self.characters.len(),
+            self.world_elements.len(),
+            self.plot_points.len(),
+            reading_time,
+            self.story_notes.len()
+        );
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(stats),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    // Character Development Methods
+    fn create_character(&mut self, args: Value) -> ToolResult {
+        let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        if name.is_empty() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some("Character name is required.".to_string()),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            };
+        }
+
+        let character = Character {
+            name: name.clone(),
+            description: args.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            traits: args.get("traits")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect())
+                .unwrap_or_else(Vec::new),
+            backstory: args.get("backstory").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            goals: args.get("goals").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            relationships: HashMap::new(),
+        };
+
+        self.characters.insert(name.clone(), character);
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(format!("Character '{}' created successfully.", name)),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn update_character(&mut self, args: Value) -> ToolResult {
+        let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        
+        if let Some(character) = self.characters.get_mut(name) {
+            if let Some(description) = args.get("description").and_then(|v| v.as_str()) {
+                character.description = description.to_string();
+            }
+            if let Some(traits) = args.get("traits").and_then(|v| v.as_array()) {
+                character.traits = traits.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect();
+            }
+            if let Some(backstory) = args.get("backstory").and_then(|v| v.as_str()) {
+                character.backstory = backstory.to_string();
+            }
+            if let Some(goals) = args.get("goals").and_then(|v| v.as_str()) {
+                character.goals = goals.to_string();
+            }
+
+            ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(format!("Character '{}' updated successfully.", name)),
+                    ..Default::default()
+                }],
+                is_error: Some(false),
+            }
         } else {
-            paras[idx] = c.to_string();
+            ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(format!("Character '{}' not found.", name)),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            }
         }
-        self.story = paras.join("\n");
-        ToolResult { 
+    }
+
+    fn add_character_relationship(&mut self, args: Value) -> ToolResult {
+        let char1 = args.get("character1").and_then(|v| v.as_str()).unwrap_or("");
+        let char2 = args.get("character2").and_then(|v| v.as_str()).unwrap_or("");
+        let relationship = args.get("relationship").and_then(|v| v.as_str()).unwrap_or("");
+
+        if let Some(character1) = self.characters.get_mut(char1) {
+            character1.relationships.insert(char2.to_string(), relationship.to_string());
+        }
+        if let Some(character2) = self.characters.get_mut(char2) {
+            character2.relationships.insert(char1.to_string(), relationship.to_string());
+        }
+
+        ToolResult {
             content: vec![ToolResultContent {
                 r#type: "text".to_string(),
-                text: Some(format!("OK, rewrote {idx}th paragraph.")),
+                text: Some(format!("Relationship between '{}' and '{}' added: {}", char1, char2, relationship)),
                 ..Default::default()
-            }], 
+            }],
             is_error: Some(false),
         }
     }
 
-    fn delete_paragraphs(&mut self, idx: usize, count: usize) -> ToolResult {
-        let mut paras = self.get_paras();
-        paras.drain(idx..idx+count);
-        self.story = paras.join("\n");
-        ToolResult { 
+    fn get_character_details(&self, args: Value) -> ToolResult {
+        let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        
+        if let Some(character) = self.characters.get(name) {
+            let mut details = format!("# Character: {}\n\n", character.name);
+            details.push_str(&format!("**Description:** {}\n\n", character.description));
+            
+            if !character.traits.is_empty() {
+                details.push_str(&format!("**Traits:** {}\n\n", character.traits.join(", ")));
+            }
+            
+            if !character.backstory.is_empty() {
+                details.push_str(&format!("**Backstory:** {}\n\n", character.backstory));
+            }
+            
+            if !character.goals.is_empty() {
+                details.push_str(&format!("**Goals:** {}\n\n", character.goals));
+            }
+            
+            if !character.relationships.is_empty() {
+                details.push_str("**Relationships:**\n");
+                for (other_char, relationship) in &character.relationships {
+                    details.push_str(&format!("- {}: {}\n", other_char, relationship));
+                }
+            }
+
+            ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(details),
+                    ..Default::default()
+                }],
+                is_error: Some(false),
+            }
+        } else {
+            ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(format!("Character '{}' not found.", name)),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            }
+        }
+    }
+
+    fn list_characters(&self) -> ToolResult {
+        if self.characters.is_empty() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some("No characters created yet.".to_string()),
+                    ..Default::default()
+                }],
+                is_error: Some(false),
+            };
+        }
+
+        let mut list = "# Characters\n\n".to_string();
+        for (name, character) in &self.characters {
+            list.push_str(&format!("## {}\n", name));
+            list.push_str(&format!("{}\n", character.description));
+            if !character.traits.is_empty() {
+                list.push_str(&format!("*Traits: {}*\n", character.traits.join(", ")));
+            }
+            list.push('\n');
+        }
+
+        ToolResult {
             content: vec![ToolResultContent {
                 r#type: "text".to_string(),
-                text: Some(format!("OK, deleted {idx}th paragraph.")),
+                text: Some(list),
                 ..Default::default()
-            }], 
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    // World-building Methods
+    fn create_world_element(&mut self, args: Value) -> ToolResult {
+        let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let element_type = args.get("element_type").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let description = args.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        
+        if name.is_empty() || element_type.is_empty() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some("Name and element type are required.".to_string()),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            };
+        }
+
+        let properties = args.get("properties")
+            .and_then(|v| v.as_object())
+            .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string())).collect())
+            .unwrap_or_else(HashMap::new);
+
+        let element = WorldElement {
+            name: name.clone(),
+            element_type: element_type.clone(),
+            description,
+            properties,
+        };
+
+        self.world_elements.insert(name.clone(), element);
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(format!("World element '{}' ({}) created successfully.", name, element_type)),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn get_world_element(&self, args: Value) -> ToolResult {
+        let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        
+        if let Some(element) = self.world_elements.get(name) {
+            let mut details = format!("# World Element: {}\n\n", element.name);
+            details.push_str(&format!("**Type:** {}\n\n", element.element_type));
+            details.push_str(&format!("**Description:** {}\n\n", element.description));
+            
+            if !element.properties.is_empty() {
+                details.push_str("**Properties:**\n");
+                for (key, value) in &element.properties {
+                    details.push_str(&format!("- {}: {}\n", key, value));
+                }
+            }
+
+            ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(details),
+                    ..Default::default()
+                }],
+                is_error: Some(false),
+            }
+        } else {
+            ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(format!("World element '{}' not found.", name)),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            }
+        }
+    }
+
+    fn list_world_elements(&self, args: Value) -> ToolResult {
+        let filter_type = args.get("element_type").and_then(|v| v.as_str());
+        
+        let filtered_elements: Vec<_> = if let Some(filter) = filter_type {
+            self.world_elements.iter()
+                .filter(|(_, element)| element.element_type == filter)
+                .collect()
+        } else {
+            self.world_elements.iter().collect()
+        };
+
+        if filtered_elements.is_empty() {
+            let message = if filter_type.is_some() {
+                format!("No world elements of type '{}' found.", filter_type.unwrap())
+            } else {
+                "No world elements created yet.".to_string()
+            };
+            
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(message),
+                    ..Default::default()
+                }],
+                is_error: Some(false),
+            };
+        }
+
+        let mut list = "# World Elements\n\n".to_string();
+        for (name, element) in filtered_elements {
+            list.push_str(&format!("## {} ({})\n", name, element.element_type));
+            list.push_str(&format!("{}\n\n", element.description));
+        }
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(list),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    // Plot & Narrative Methods
+    fn add_plot_point(&mut self, args: Value) -> ToolResult {
+        let plot_point = args.get("plot_point").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        
+        if plot_point.is_empty() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some("Plot point description is required.".to_string()),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            };
+        }
+
+        self.plot_points.push(plot_point.clone());
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(format!("Plot point added: {}", plot_point)),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn analyze_story_structure(&self) -> ToolResult {
+        let mut analysis = "# Story Structure Analysis\n\n".to_string();
+        
+        // Basic structure analysis
+        let chapter_count = self.chapters.len();
+        let total_words: usize = self.chapters.iter().map(|c| c.word_count).sum();
+        
+        analysis.push_str(&format!("**Structure Overview:**\n"));
+        analysis.push_str(&format!("- Chapters: {}\n", chapter_count));
+        analysis.push_str(&format!("- Total Words: {}\n", total_words));
+        analysis.push_str(&format!("- Average Chapter Length: {} words\n\n", 
+            if chapter_count > 0 { total_words / chapter_count } else { 0 }));
+
+        // Plot point analysis
+        analysis.push_str(&format!("**Plot Development:**\n"));
+        analysis.push_str(&format!("- Major Plot Points: {}\n", self.plot_points.len()));
+        
+        if !self.plot_points.is_empty() {
+            analysis.push_str("- Plot Points:\n");
+            for (i, point) in self.plot_points.iter().enumerate() {
+                analysis.push_str(&format!("  {}. {}\n", i + 1, point));
+            }
+        }
+        analysis.push('\n');
+
+        // Character analysis
+        analysis.push_str(&format!("**Character Development:**\n"));
+        analysis.push_str(&format!("- Total Characters: {}\n", self.characters.len()));
+        
+        let characters_with_goals = self.characters.values().filter(|c| !c.goals.is_empty()).count();
+        let characters_with_backstory = self.characters.values().filter(|c| !c.backstory.is_empty()).count();
+        
+        analysis.push_str(&format!("- Characters with defined goals: {}\n", characters_with_goals));
+        analysis.push_str(&format!("- Characters with backstory: {}\n\n", characters_with_backstory));
+
+        // World-building analysis
+        analysis.push_str(&format!("**World-building:**\n"));
+        analysis.push_str(&format!("- World Elements: {}\n", self.world_elements.len()));
+        
+        let element_types: std::collections::HashSet<_> = self.world_elements.values()
+            .map(|e| &e.element_type)
+            .collect();
+        
+        if !element_types.is_empty() {
+            let types: Vec<String> = element_types.iter().map(|s| s.to_string()).collect();
+            analysis.push_str(&format!("- Element Types: {}\n", types.join(", ")));
+        }
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(analysis),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    // Writing Enhancement Methods
+    fn analyze_chapter_content(&self, args: Value) -> ToolResult {
+        let chapter_index = args.get("chapter_index")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+
+        if chapter_index >= self.chapters.len() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(format!("Chapter index {} is out of range. Story has {} chapters.", 
+                        chapter_index, self.chapters.len())),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            };
+        }
+
+        let chapter = &self.chapters[chapter_index];
+        let mut analysis = format!("# Chapter Analysis: {}\n\n", chapter.title);
+        
+        // Basic metrics
+        analysis.push_str(&format!("**Basic Metrics:**\n"));
+        analysis.push_str(&format!("- Word Count: {}\n", chapter.word_count));
+        analysis.push_str(&format!("- Estimated Reading Time: {} minutes\n", 
+            (chapter.word_count as f64 / 250.0).ceil() as usize));
+        
+        // Content analysis
+        let sentences = chapter.content.split('.').count();
+        let paragraphs = chapter.content.split('\n').filter(|p| !p.trim().is_empty()).count();
+        
+        analysis.push_str(&format!("- Sentences: ~{}\n", sentences));
+        analysis.push_str(&format!("- Paragraphs: {}\n", paragraphs));
+        analysis.push_str(&format!("- Average Words per Paragraph: {}\n\n", 
+            if paragraphs > 0 { chapter.word_count / paragraphs } else { 0 }));
+
+        // Plot points
+        if !chapter.plot_points.is_empty() {
+            analysis.push_str("**Plot Points in this Chapter:**\n");
+            for point in &chapter.plot_points {
+                analysis.push_str(&format!("- {}\n", point));
+            }
+            analysis.push('\n');
+        }
+
+        // Summary
+        if !chapter.summary.is_empty() {
+            analysis.push_str(&format!("**Summary:** {}\n", chapter.summary));
+        }
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(analysis),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn suggest_character_development(&self, args: Value) -> ToolResult {
+        let character_name = args.get("character_name").and_then(|v| v.as_str());
+        
+        let mut suggestions = "# Character Development Suggestions\n\n".to_string();
+
+        if let Some(name) = character_name {
+            if let Some(character) = self.characters.get(name) {
+                suggestions.push_str(&format!("## Suggestions for {}\n\n", name));
+                
+                if character.goals.is_empty() {
+                    suggestions.push_str("- **Define Goals:** Consider adding specific goals and motivations for this character.\n");
+                }
+                
+                if character.backstory.is_empty() {
+                    suggestions.push_str("- **Develop Backstory:** Add background information that explains their current situation and personality.\n");
+                }
+                
+                if character.traits.is_empty() {
+                    suggestions.push_str("- **Add Traits:** Define personality traits that make this character unique.\n");
+                }
+                
+                if character.relationships.is_empty() {
+                    suggestions.push_str("- **Build Relationships:** Establish connections with other characters in the story.\n");
+                }
+            } else {
+                return ToolResult {
+                    content: vec![ToolResultContent {
+                        r#type: "text".to_string(),
+                        text: Some(format!("Character '{}' not found.", name)),
+                        ..Default::default()
+                    }],
+                    is_error: Some(true),
+                };
+            }
+        } else {
+            // General suggestions for all characters
+            suggestions.push_str("## General Character Development Opportunities\n\n");
+            
+            let incomplete_characters: Vec<_> = self.characters.iter()
+                .filter(|(_, c)| c.goals.is_empty() || c.backstory.is_empty() || c.traits.is_empty())
+                .collect();
+            
+            if !incomplete_characters.is_empty() {
+                suggestions.push_str("**Characters needing development:**\n");
+                for (name, character) in incomplete_characters {
+                    suggestions.push_str(&format!("- **{}:** ", name));
+                    let mut needs = vec![];
+                    if character.goals.is_empty() { needs.push("goals"); }
+                    if character.backstory.is_empty() { needs.push("backstory"); }
+                    if character.traits.is_empty() { needs.push("traits"); }
+                    suggestions.push_str(&format!("{}\n", needs.join(", ")));
+                }
+                suggestions.push('\n');
+            }
+            
+            // Relationship suggestions
+            let characters_without_relationships: Vec<_> = self.characters.iter()
+                .filter(|(_, c)| c.relationships.is_empty())
+                .map(|(name, _)| name)
+                .collect();
+            
+            if !characters_without_relationships.is_empty() {
+                suggestions.push_str("**Characters without relationships:**\n");
+                for name in characters_without_relationships {
+                    suggestions.push_str(&format!("- {}\n", name));
+                }
+            }
+        }
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(suggestions),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    // Notes & Organization Methods
+    fn add_story_note(&mut self, args: Value) -> ToolResult {
+        let note = args.get("note").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        
+        if note.is_empty() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some("Note content is required.".to_string()),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            };
+        }
+
+        self.story_notes.push(note.clone());
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(format!("Story note added: {}", note)),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn get_story_notes(&self) -> ToolResult {
+        if self.story_notes.is_empty() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some("No story notes yet.".to_string()),
+                    ..Default::default()
+                }],
+                is_error: Some(false),
+            };
+        }
+
+        let mut notes = "# Story Notes\n\n".to_string();
+        for (i, note) in self.story_notes.iter().enumerate() {
+            notes.push_str(&format!("{}. {}\n", i + 1, note));
+        }
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(notes),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    // Export & Formatting Methods
+    fn export_story(&self, args: Value) -> ToolResult {
+        let format = args.get("format").and_then(|v| v.as_str()).unwrap_or("markdown");
+        
+        match format {
+            "markdown" => self.export_markdown(),
+            "plain_text" => self.export_plain_text(),
+            "structured" => self.export_structured(),
+            _ => ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some("Invalid format. Use 'markdown', 'plain_text', or 'structured'.".to_string()),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            }
+        }
+    }
+
+    fn export_markdown(&self) -> ToolResult {
+        let mut export = format!("# {}\n\n", self.metadata.title);
+        export.push_str(&format!("**Genre:** {}\n", self.metadata.genre));
+        export.push_str(&format!("**Target Audience:** {}\n\n", self.metadata.target_audience));
+        
+        if !self.metadata.synopsis.is_empty() {
+            export.push_str(&format!("## Synopsis\n\n{}\n\n", self.metadata.synopsis));
+        }
+
+        for (i, chapter) in self.chapters.iter().enumerate() {
+            export.push_str(&format!("## Chapter {}: {}\n\n", i + 1, chapter.title));
+            export.push_str(&format!("{}\n\n", chapter.content));
+        }
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(export),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn export_plain_text(&self) -> ToolResult {
+        let mut export = format!("{}\n\n", self.metadata.title);
+        
+        for (i, chapter) in self.chapters.iter().enumerate() {
+            export.push_str(&format!("Chapter {}: {}\n\n", i + 1, chapter.title));
+            export.push_str(&format!("{}\n\n", chapter.content));
+        }
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(export),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn export_structured(&self) -> ToolResult {
+        let export_data = json!({
+            "metadata": self.metadata,
+            "chapters": self.chapters,
+            "characters": self.characters,
+            "world_elements": self.world_elements,
+            "plot_points": self.plot_points,
+            "story_notes": self.story_notes
+        });
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(serde_json::to_string_pretty(&export_data).unwrap_or_else(|_| "Export failed".to_string())),
+                ..Default::default()
+            }],
             is_error: Some(false),
         }
     }

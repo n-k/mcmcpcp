@@ -59,7 +59,13 @@ impl ProviderSettings {
 pub struct Chat {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<u32>,
-    pub chat_type: String,
+    pub chat_type: Toolsets,
     pub messages: Vec<Message>,
     pub value: Value,
+}
+
+#[derive(Copy, Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum Toolsets {
+    Chat,
+    Story,
 }

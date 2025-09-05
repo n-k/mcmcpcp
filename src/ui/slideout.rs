@@ -44,7 +44,7 @@ pub fn Slideout(mut props: SlideoutProps) -> Element {
                     position: fixed;
                     top: 0;
                     right: 0;
-                    width: 300px;
+                    width: 500px;
                     height: 100%;
                     background: #fff;
                     box-shadow: -2px 0 6px rgba(0,0,0,.2);

@@ -41,25 +41,6 @@ body {
     box-sizing: border-box;
 }
 
-/* Left panel (main content) */
-.left {
-    flex: 1 1 0;       /* grow to fill remaining space */
-    min-width: 0;      /* allows children to shrink properly */
-    padding: 1rem;
-    background: #f6f6f8;
-    border-radius: 8px;
-}
-
-/* Right panel (optional) */
-.right {
-    flex: 0 0 var(--right-width); /* fixed-ish width on wide screens */
-    max-width: 40%;               /* don't let it be enormous on huge screens */
-    padding: 1rem;
-    background: #fff;
-    border: 1px solid #e6e6e8;
-    border-radius: 8px;
-}
-
 textarea {
     font-size: 1.1rem !important;
     background: var(--theme-surface);
@@ -133,10 +114,12 @@ pre code::before {
 }
 
 .content {
-    flex-grow: 1;
+    /* flex-grow: 1; */
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     overflow: hidden;
+    height: 100%;
+    width: 100%;
 }
 
 .box-select {

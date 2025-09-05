@@ -11,12 +11,7 @@ use dioxus::{
 use serde_json::{Value, json};
 
 use crate::{
-    Route,
-    app_settings::Chat,
-    llm::{FunctionDelta, ToolCallDelta},
-    storage::{Storage, get_storage},
-    toolset::{StoryWriter, Toolset},
-    utils::{call_tools, tools_to_message_objects},
+    app_settings::{Chat, Toolsets}, llm::{FunctionDelta, ToolCallDelta}, storage::{get_storage, Storage}, toolset::{ChatTools, StoryMetadata, StoryWriter, Toolset}, utils::{call_tools, tools_to_message_objects}, Route
 };
 use crate::{
     llm::{ContentPart, LlmClient, Message, Tool}, // LLM types and client
@@ -31,6 +26,7 @@ pub fn ChatEl(id: u32) -> Element {
     rsx! {
         Home {
             id: Signal::new(Some(id)),
+            chat_type: Toolsets::Chat,
         }
     }
 }
@@ -40,6 +36,17 @@ pub fn NewChat() -> Element {
     rsx! {
         Home {
             id: Signal::new(None),
+            chat_type: Toolsets::Chat,
+        }
+    }
+}
+
+#[component]
+pub fn NewStory() -> Element {
+    rsx! {
+        Home {
+            id: Signal::new(None),
+            chat_type: Toolsets::Story,
         }
     }
 }
@@ -50,17 +57,15 @@ pub fn NewChat() -> Element {
 /// It manages the conversation state, handles streaming responses, executes tools,
 /// and provides safety mechanisms to prevent runaway tool execution.
 #[component]
-pub fn Home(id: Signal<Option<u32>>) -> Element {
+pub fn Home(
+    id: Signal<Option<u32>>,
+    chat_type: Toolsets,
+) -> Element {
     let nav = navigator();
-    let toolset: Signal<Box<dyn Toolset>> = use_signal(|| {
-        // let ts: Box<dyn Toolset> = Box::new(ChatTools::new());
-        let ts: Box<dyn Toolset> = Box::new(StoryWriter::new("".to_string()));
-        ts
-    });
     let mut chat: Signal<Chat> = use_signal(|| {
         Chat {
             id: None,
-            chat_type: "chat".to_string(),
+            chat_type: chat_type,
             messages: vec![Message::System {
                 content: "You are a helpful assistant. 
                     You have access to tools which you can call to help the user in the user's task."
@@ -68,6 +73,13 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
             }],
             value: json!({}),
         }
+    });
+    let mut toolset: Signal<Box<dyn Toolset>> = use_signal(|| {
+        let ts: Box<dyn Toolset> = match chat_type {
+            Toolsets::Chat => Box::new(ChatTools::new()),
+            Toolsets::Story => Box::new(StoryWriter::new(Default::default())),
+        };
+        ts
     });
     let _ = use_resource(move || async move {
         let Some(id) = id() else {
@@ -84,20 +96,17 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
             return;
         };
         if let Ok(Some(ch)) = storage.get_chat(id).await {
-            // if ch.chat_type == "story" {
-            //     let v = chat().value.get("story")
-            //         .map(|v| v.clone())
-            //         .unwrap_or_else(|| Value::String("".to_string()))
-            //         .as_str()
-            //         .unwrap_or_else(|| "")
-            //         .to_string();
-            //     let ts: Box<dyn Toolset> = Box::new(StoryWriter::new(v));
-            //     toolset.set(ts);
-            // } else {
-            //     let ts: Box<dyn Toolset> = Box::new(ChatTools::new());
-            //     toolset.set(ts);
-            // }
-
+            let ts: Box<dyn Toolset> = if ch.chat_type == Toolsets::Story {
+                let metadata: StoryMetadata = serde_json::from_value(ch.value.clone())
+                    .unwrap_or_else(|e| {
+                        warn!("Invalid story metadta: {e:?}");
+                        Default::default()
+                    });
+                Box::new(StoryWriter::new(metadata))
+            } else {
+                Box::new(ChatTools::new())
+            };
+            toolset.set(ts);
             chat.set(ch);
         }
     });
@@ -324,77 +333,91 @@ pub fn Home(id: Signal<Option<u32>>) -> Element {
 
     // Render the main chat interface
     rsx! {
-        div { class: "content",
-            // Scrollable message area
+        div { 
+            class: "content",
             div {
-                // class: "left",
-                style: "flex-grow: 1; overflow: auto;",
-                // Render all messages in the conversation
-                for c in chat.read().messages.iter() {
-                    MessageEl { msg: (*c).clone() }
-                }
+                style: "
+                height: 100%;
+                width: 50%;
+                flex-grow: 1;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                ",
+                div {
+                    style: "
+                    flex-grow: 1;
+                    overflow: auto;
+                    ",
+                    // Render all messages in the conversation
+                    for c in chat.read().messages.iter() {
+                        MessageEl { msg: (*c).clone() }
+                    }
 
-                // Show streaming message if one is being generated
-                {stream_output}
+                    // Show streaming message if one is being generated
+                    {stream_output}
 
-                // Show tool count warning if too many tools have been executed
-                if tool_count_warning() {
-                    div {
-                        "10 tool calls have been made without user intervention."
-                        button {
-                            onclick: move |_| async move {
-                                tool_count_warning.set(false);
-                                // Continue with more tool execution
-                                if let Err(e) = run_tools_loop().await {
-                                    eprintln!("{e:?}");
-                                }
-                            },
-                            "Continue"
-                        }
-                        button {
-                            onclick: move |_| async move {
-                                // Stop tool execution
-                                tool_count_warning.set(false);
-                            },
-                            "Stop"
+                    // Show tool count warning if too many tools have been executed
+                    if tool_count_warning() {
+                        div {
+                            "10 tool calls have been made without user intervention."
+                            button {
+                                onclick: move |_| async move {
+                                    tool_count_warning.set(false);
+                                    // Continue with more tool execution
+                                    if let Err(e) = run_tools_loop().await {
+                                        eprintln!("{e:?}");
+                                    }
+                                },
+                                "Continue"
+                            }
+                            button {
+                                onclick: move |_| async move {
+                                    // Stop tool execution
+                                    tool_count_warning.set(false);
+                                },
+                                "Stop"
+                            }
                         }
                     }
                 }
-            }
-
-            div {
-                style: "
-                height: 6em;
-                flex-grow: 0;
-                ",
-                "{tool_value:?}"
-            }
-
-            // Fixed chat input area at the bottom
-            div {
-                style: "
-                flex-grow: 0;
-                padding: 1.5em;
-                ",
-                ChatInput {
-                    disabled: disabled().unwrap_or_else(|| true),
-                    on_send: Callback::new(move |s: String| async move {
-                        // Prevent multiple concurrent requests
-                        {
-                            if busy() {
-                                return;
+                // Fixed chat input area at the bottom
+                div {
+                    style: "
+                    flex-grow: 0;
+                    padding: 1.5em;
+                    ",
+                    ChatInput {
+                        disabled: disabled().unwrap_or_else(|| true),
+                        on_send: Callback::new(move |s: String| async move {
+                            // Prevent multiple concurrent requests
+                            {
+                                if busy() {
+                                    return;
+                                }
                             }
-                        }
 
-                        // Process the message
-                        {
-                            busy.set(true);
-                            if let Err(e) = send_msg(s).await {
-                                warn!("{e:?}");
+                            // Process the message
+                            {
+                                busy.set(true);
+                                if let Err(e) = send_msg(s).await {
+                                    warn!("{e:?}");
+                                }
+                                busy.set(false);
                             }
-                            busy.set(false);
-                        }
-                    }),
+                        }),
+                    }
+                }
+            }
+            if chat().chat_type == Toolsets::Story {
+                div {
+                    style: "
+                    height: 100%;
+                    max-width: 50%;
+                    flex-grow: 0;
+                    overflow: auto;
+                    ",
+                    "{tool_value:?}"
                 }
             }
         }

@@ -36,7 +36,7 @@ pub fn tools_to_message_objects(tools: Vec<ToolDescriptor>) -> Vec<Tool> {
                 r#type: "function".into(),
                 function: Function {
                     // Prefix tool name with server ID for unique identification
-                    name: format!("{}/{}", t.server_id, t.tool.name),
+                    name: format!("{}--{}", t.server_id, t.tool.name),
                     description: t.tool.description,
                     parameters: Some(t.tool.input_schema),
                     strict: Some(true), // Enable strict parameter validation
@@ -79,7 +79,7 @@ pub async fn call_tools(
             .as_ref()
             .map(|s| s.as_str())
             .unwrap_or_else(|| "")
-            .split("/")
+            .split("--")
             .collect();
             
         if parts.len() == 2 {

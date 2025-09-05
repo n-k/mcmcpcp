@@ -25,6 +25,7 @@ mod toolset;    // specialised toolsets like storywriting, RP, coding ...
 
 use app_settings::AppSettings;
 use ui::home::NewChat;
+use ui::home::NewStory;
 use ui::home::ChatEl;
 use ui::settings::Settings;
 use ui::slideout::Slideout;
@@ -33,10 +34,16 @@ use crate::ui::chat_log::ChatLog;
 
 /// Application favicon - SVG format for scalability
 const FAVICON: Asset = asset!("/assets/favicon.ico");
+// Chat log icon
+const NEW_CHAT_ICON: Asset = asset!("/assets/new_chat.svg");
+// Chat log icon
+const NEW_STORY_ICON: Asset = asset!("/assets/new_story.svg");
+// Chat log icon
+// const NEW_PPT_ICON: Asset = asset!("/assets/new_presentation.svg");
 /// Main CSS stylesheet for application styling
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 // Home icon
-const HOME_ICON: Asset = asset!("/assets/home.svg");
+// const HOME_ICON: Asset = asset!("/assets/home.svg");
 // Chat log icon
 const CHATS_ICON: Asset = asset!("/assets/chat_list.svg");
 // Settings icon
@@ -83,6 +90,8 @@ enum Route {
     #[layout(Layout)]
     #[route("/")]
     NewChat { },
+    #[route("/story")]
+    NewStory { },
     #[route("/chats/:id")]
     ChatEl { id: u32 },
     #[route("/:..segments")]
@@ -113,7 +122,13 @@ fn Layout() -> Element {
                 onclick: move |_e: Event<MouseData>| {
                     nav.replace(crate::Route::NewChat {});
                 },
-                img { src: HOME_ICON }
+                img { src: NEW_CHAT_ICON }
+            },
+            button {
+                onclick: move |_e: Event<MouseData>| {
+                    nav.replace(crate::Route::NewStory {});
+                },
+                img { src: NEW_STORY_ICON }
             },
             button {
                 onclick: move |_e: Event<MouseData>| {

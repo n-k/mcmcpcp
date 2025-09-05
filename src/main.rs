@@ -4,10 +4,6 @@
 //! through the Model Context Protocol (MCP), allowing users to execute tools and commands
 //! through connected MCP servers.
 
-use std::{sync::Arc, time::Duration};
-
-use dioxus::LaunchBuilder;
-
 /// Main function that initializes and launches the MCMCPCP application.
 /// 
 /// This function:
