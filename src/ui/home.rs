@@ -11,7 +11,13 @@ use dioxus::{
 use serde_json::{Value, json};
 
 use crate::{
-    app_settings::{Chat, Toolsets}, llm::{FunctionDelta, ToolCallDelta}, storage::{get_storage, Storage}, toolset::{ChatTools, StoryMetadata, StoryWriter, Toolset}, utils::{call_tools, tools_to_message_objects}, Route
+    app_settings::{Chat, Toolsets}, 
+    llm::{FunctionDelta, ToolCallDelta}, 
+    storage::{get_storage, Storage}, 
+    toolset::{ChatTools, Story, StoryWriter, Toolset}, 
+    ui::story::StoryRenderer, 
+    utils::{call_tools, tools_to_message_objects}, 
+    Route
 };
 use crate::{
     llm::{ContentPart, LlmClient, Message, Tool}, // LLM types and client
@@ -62,27 +68,41 @@ pub fn Home(
     chat_type: Toolsets,
 ) -> Element {
     let nav = navigator();
+    let mut toolset: Signal<Box<dyn Toolset>> = use_signal(|| {
+        let ts: Box<dyn Toolset> = match chat_type {
+            Toolsets::Chat => {
+                Box::new(ChatTools::new())
+            },
+            Toolsets::Story => {
+                Box::new(StoryWriter::new(Default::default()))
+            },
+        };
+        ts
+    });
     let mut chat: Signal<Chat> = use_signal(|| {
+        let ts = &*toolset.read();
         Chat {
             id: None,
             chat_type: chat_type,
             messages: vec![Message::System {
-                content: "You are a helpful assistant. 
-                    You have access to tools which you can call to help the user in the user's task."
-                    .into(),
+                content: ts.get_system_prompt(),
             }],
-            value: json!({}),
+            value: match chat_type {
+                Toolsets::Chat => {
+                    json!({})
+                },
+                Toolsets::Story => {
+                    serde_json::to_value(Story::default()).unwrap()
+                },
+            },
         }
     });
-    let mut toolset: Signal<Box<dyn Toolset>> = use_signal(|| {
-        let ts: Box<dyn Toolset> = match chat_type {
-            Toolsets::Chat => Box::new(ChatTools::new()),
-            Toolsets::Story => Box::new(StoryWriter::new(Default::default())),
-        };
-        ts
-    });
+    let mut display: Signal<Option<String>> = use_signal(|| None);
     let _ = use_resource(move || async move {
         let Some(id) = id() else {
+            let ts = &*toolset.read();
+            let d = ts.get_markdown_repr().await;
+            display.set(d);
             return;
         };
         let storage = match get_storage().await {
@@ -97,15 +117,16 @@ pub fn Home(
         };
         if let Ok(Some(ch)) = storage.get_chat(id).await {
             let ts: Box<dyn Toolset> = if ch.chat_type == Toolsets::Story {
-                let metadata: StoryMetadata = serde_json::from_value(ch.value.clone())
+                let story: Story = serde_json::from_value(ch.value.clone())
                     .unwrap_or_else(|e| {
                         warn!("Invalid story metadta: {e:?}");
                         Default::default()
                     });
-                Box::new(StoryWriter::new(metadata))
+                Box::new(StoryWriter::new(story))
             } else {
                 Box::new(ChatTools::new())
             };
+            display.set(ts.get_markdown_repr().await);
             toolset.set(ts);
             chat.set(ch);
         }
@@ -193,6 +214,8 @@ pub fn Home(
         let ts = &*toolset.read();
         let value = ts.get_state().await;
         chat.with_mut(move |c| c.value = value);
+        let md = ts.get_markdown_repr().await;
+        display.with_mut(|d| *d = md);
         let Some(stg) = storage else { return Ok(()) };
         let new_chat_id = stg.save_chat(&chat()).await?;
         chat.with_mut(|c| {
@@ -329,7 +352,7 @@ pub fn Home(
             div { class: "message ai-message", {crate::md2rsx::markdown_to_rsx(&m)} }
         }
     });
-    let tool_value = chat().value;
+    let display = display.cloned();
 
     // Render the main chat interface
     rsx! {
@@ -338,7 +361,7 @@ pub fn Home(
             div {
                 style: "
                 height: 100%;
-                width: 50%;
+                min-width: 50%;
                 flex-grow: 1;
                 overflow: hidden;
                 display: flex;
@@ -410,14 +433,20 @@ pub fn Home(
                 }
             }
             if chat().chat_type == Toolsets::Story {
-                div {
-                    style: "
-                    height: 100%;
-                    max-width: 50%;
-                    flex-grow: 0;
-                    overflow: auto;
-                    ",
-                    "{tool_value:?}"
+                {
+                    if let Some(d) = display {
+                        rsx!{
+                            div {
+                                style: "
+                                height: 100%;
+                                overflow: auto;
+                                ",
+                                {crate::md2rsx::markdown_to_rsx(&d)}
+                            }
+                        }
+                    } else {
+                        rsx! {}
+                    }
                 }
             }
         }
@@ -428,6 +457,7 @@ fn extract_wierd_tool_calls(text: &str) -> anyhow::Result<Option<ToolCallDelta>>
     if text.starts_with("[TOOL_CALLS]") {
         let t = text.replace("[TOOL_CALLS]", "");
         let parts: Vec<String> = t.split("<SPECIAL_32>").map(|s| s.into()).collect();
+        if parts.len() < 2 { return Ok(None) }
         return Ok(Some(ToolCallDelta {
             id: Some("...".into()),
             kind: Some("function".into()),
