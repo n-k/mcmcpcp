@@ -234,9 +234,68 @@ impl MCPServer for CreativeWriterMcpServer {
                         "title": {"type": "string", "description": "Chapter title"},
                         "content": {"type": "string", "description": "Chapter content"},
                         "summary": {"type": "string", "description": "Chapter summary"},
-                        "plot_points": {"type": "array", "items": {"type": "string"}, "description": "Key plot points in this chapter"}
+                        "plot_points": {"type": "array", "items": {"type": "string"}, "description": "Key plot points in this chapter"},
+                        "position": {"type": "number", "description": "Position to insert chapter (0-based index, optional - defaults to end)"}
                     },
                     "required": ["title", "content"]
+                }),
+            },
+            McpTool {
+                name: "update_chapter".into(),
+                description: Some("Update an existing chapter's content, title, summary, or plot points.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "chapter_index": {"type": "number", "description": "Chapter index (0-based)"},
+                        "title": {"type": "string", "description": "Updated chapter title"},
+                        "content": {"type": "string", "description": "Updated chapter content"},
+                        "summary": {"type": "string", "description": "Updated chapter summary"},
+                        "plot_points": {"type": "array", "items": {"type": "string"}, "description": "Updated plot points for this chapter"}
+                    },
+                    "required": ["chapter_index"]
+                }),
+            },
+            McpTool {
+                name: "delete_chapter".into(),
+                description: Some("Delete a chapter by its index.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "chapter_index": {"type": "number", "description": "Chapter index to delete (0-based)"}
+                    },
+                    "required": ["chapter_index"]
+                }),
+            },
+            McpTool {
+                name: "move_chapter".into(),
+                description: Some("Move a chapter to a different position in the story.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "from_index": {"type": "number", "description": "Current chapter index (0-based)"},
+                        "to_index": {"type": "number", "description": "Target position index (0-based)"}
+                    },
+                    "required": ["from_index", "to_index"]
+                }),
+            },
+            McpTool {
+                name: "get_chapter".into(),
+                description: Some("Get detailed information about a specific chapter.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "chapter_index": {"type": "number", "description": "Chapter index (0-based)"}
+                    },
+                    "required": ["chapter_index"]
+                }),
+            },
+            McpTool {
+                name: "list_chapters".into(),
+                description: Some("List all chapters with basic information (titles, word counts, summaries).".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {},
+                    "required": []
                 }),
             },
             McpTool {
@@ -464,6 +523,11 @@ impl MCPServer for CreativeWriterMcpServer {
             // Story Structure & Management
             "update_story_metadata" => self.update_story_metadata(args),
             "create_chapter" => self.create_chapter(args),
+            "update_chapter" => self.update_chapter(args),
+            "delete_chapter" => self.delete_chapter(args),
+            "move_chapter" => self.move_chapter(args),
+            "get_chapter" => self.get_chapter(args),
+            "list_chapters" => self.list_chapters(),
             "get_story_outline" => self.get_story_outline(),
             "get_story_statistics" => self.get_story_statistics(),
             
@@ -548,6 +612,7 @@ impl CreativeWriterMcpServer {
             .and_then(|v| v.as_array())
             .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect())
             .unwrap_or_else(Vec::new);
+        let position = args.get("position").and_then(|v| v.as_u64()).map(|v| v as usize);
 
         let word_count = content.split_whitespace().count();
         
@@ -559,12 +624,260 @@ impl CreativeWriterMcpServer {
             plot_points,
         };
 
-        self.story.chapters.push(chapter);
+        if let Some(pos) = position {
+            if pos <= self.story.chapters.len() {
+                self.story.chapters.insert(pos, chapter);
+            } else {
+                self.story.chapters.push(chapter);
+            }
+        } else {
+            self.story.chapters.push(chapter);
+        }
+
+        let final_position = position.unwrap_or(self.story.chapters.len() - 1);
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(format!("Chapter '{}' created successfully with {} words at position {}.", title, word_count, final_position)),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn update_chapter(&mut self, args: Value) -> ToolResult {
+        let chapter_index = args.get("chapter_index")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+
+        if chapter_index >= self.story.chapters.len() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(format!("Chapter index {} is out of range. Story has {} chapters.", 
+                        chapter_index, self.story.chapters.len())),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            };
+        }
+
+        let chapter = &mut self.story.chapters[chapter_index];
+        let mut updated_fields = Vec::new();
+
+        if let Some(title) = args.get("title").and_then(|v| v.as_str()) {
+            chapter.title = title.to_string();
+            updated_fields.push("title");
+        }
+
+        if let Some(content) = args.get("content").and_then(|v| v.as_str()) {
+            chapter.content = content.to_string();
+            chapter.word_count = content.split_whitespace().count();
+            updated_fields.push("content");
+        }
+
+        if let Some(summary) = args.get("summary").and_then(|v| v.as_str()) {
+            chapter.summary = summary.to_string();
+            updated_fields.push("summary");
+        }
+
+        if let Some(plot_points) = args.get("plot_points").and_then(|v| v.as_array()) {
+            chapter.plot_points = plot_points.iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.to_string())
+                .collect();
+            updated_fields.push("plot_points");
+        }
+
+        if updated_fields.is_empty() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some("No fields provided to update.".to_string()),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            };
+        }
 
         ToolResult {
             content: vec![ToolResultContent {
                 r#type: "text".to_string(),
-                text: Some(format!("Chapter '{}' created successfully with {} words.", title, word_count)),
+                text: Some(format!("Chapter {} '{}' updated successfully. Updated fields: {}", 
+                    chapter_index, chapter.title, updated_fields.join(", "))),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn delete_chapter(&mut self, args: Value) -> ToolResult {
+        let chapter_index = args.get("chapter_index")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+
+        if chapter_index >= self.story.chapters.len() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(format!("Chapter index {} is out of range. Story has {} chapters.", 
+                        chapter_index, self.story.chapters.len())),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            };
+        }
+
+        let removed_chapter = self.story.chapters.remove(chapter_index);
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(format!("Chapter {} '{}' deleted successfully.", chapter_index, removed_chapter.title)),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn move_chapter(&mut self, args: Value) -> ToolResult {
+        let from_index = args.get("from_index")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+        let to_index = args.get("to_index")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+
+        if from_index >= self.story.chapters.len() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(format!("Source chapter index {} is out of range. Story has {} chapters.", 
+                        from_index, self.story.chapters.len())),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            };
+        }
+
+        if to_index >= self.story.chapters.len() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(format!("Target chapter index {} is out of range. Story has {} chapters.", 
+                        to_index, self.story.chapters.len())),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            };
+        }
+
+        if from_index == to_index {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some("Source and target indices are the same. No move needed.".to_string()),
+                    ..Default::default()
+                }],
+                is_error: Some(false),
+            };
+        }
+
+        let chapter = self.story.chapters.remove(from_index);
+        let chapter_title = chapter.title.clone();
+        self.story.chapters.insert(to_index, chapter);
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(format!("Chapter '{}' moved from position {} to position {}.", 
+                    chapter_title, from_index, to_index)),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn get_chapter(&self, args: Value) -> ToolResult {
+        let chapter_index = args.get("chapter_index")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+
+        if chapter_index >= self.story.chapters.len() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(format!("Chapter index {} is out of range. Story has {} chapters.", 
+                        chapter_index, self.story.chapters.len())),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            };
+        }
+
+        let chapter = &self.story.chapters[chapter_index];
+        let mut details = format!("# Chapter {}: {}\n\n", chapter_index + 1, chapter.title);
+        
+        details.push_str(&format!("**Word Count:** {}\n", chapter.word_count));
+        details.push_str(&format!("**Estimated Reading Time:** {} minutes\n\n", 
+            (chapter.word_count as f64 / 250.0).ceil() as usize));
+
+        if !chapter.summary.is_empty() {
+            details.push_str(&format!("**Summary:** {}\n\n", chapter.summary));
+        }
+
+        if !chapter.plot_points.is_empty() {
+            details.push_str("**Plot Points:**\n");
+            for point in &chapter.plot_points {
+                details.push_str(&format!("- {}\n", point));
+            }
+            details.push('\n');
+        }
+
+        details.push_str("**Content:**\n\n");
+        details.push_str(&chapter.content);
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(details),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn list_chapters(&self) -> ToolResult {
+        if self.story.chapters.is_empty() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some("No chapters created yet.".to_string()),
+                    ..Default::default()
+                }],
+                is_error: Some(false),
+            };
+        }
+
+        let mut list = "# Chapters\n\n".to_string();
+        for (i, chapter) in self.story.chapters.iter().enumerate() {
+            list.push_str(&format!("## {}. {} ({} words)\n\n", i + 1, chapter.title, chapter.word_count));
+            
+            if !chapter.summary.is_empty() {
+                list.push_str(&format!("**Summary:** {}\n\n", chapter.summary));
+            }
+
+            if !chapter.plot_points.is_empty() {
+                list.push_str("**Plot Points:** ");
+                list.push_str(&chapter.plot_points.join(", "));
+                list.push_str("\n\n");
+            }
+        }
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(list),
                 ..Default::default()
             }],
             is_error: Some(false),
@@ -1233,15 +1546,102 @@ impl CreativeWriterMcpServer {
     fn export_markdown(&self) -> ToolResult {
         let mut export = format!("# {}\n\n", self.story.metadata.title);
         export.push_str(&format!("**Genre:** {}\n", self.story.metadata.genre));
-        export.push_str(&format!("**Target Audience:** {}\n\n", self.story.metadata.target_audience));
+        export.push_str(&format!("**Target Audience:** {}\n", self.story.metadata.target_audience));
+        
+        if !self.story.metadata.themes.is_empty() {
+            export.push_str(&format!("**Themes:** {}\n", self.story.metadata.themes.join(", ")));
+        }
+        export.push('\n');
         
         if !self.story.metadata.synopsis.is_empty() {
             export.push_str(&format!("## Synopsis\n\n{}\n\n", self.story.metadata.synopsis));
         }
 
-        for (i, chapter) in self.story.chapters.iter().enumerate() {
-            export.push_str(&format!("## Chapter {}: {}\n\n", i + 1, chapter.title));
-            export.push_str(&format!("{}\n\n", chapter.content));
+        // Export plot points
+        if !self.story.plot_points.is_empty() {
+            export.push_str("## Plot Points\n\n");
+            for (i, point) in self.story.plot_points.iter().enumerate() {
+                export.push_str(&format!("{}. {}\n", i + 1, point));
+            }
+            export.push('\n');
+        }
+
+        // Export characters
+        if !self.story.characters.is_empty() {
+            export.push_str("## Characters\n\n");
+            for (name, character) in &self.story.characters {
+                export.push_str(&format!("### {}\n\n", name));
+                export.push_str(&format!("**Description:** {}\n\n", character.description));
+                
+                if !character.traits.is_empty() {
+                    export.push_str(&format!("**Traits:** {}\n\n", character.traits.join(", ")));
+                }
+                
+                if !character.backstory.is_empty() {
+                    export.push_str(&format!("**Backstory:** {}\n\n", character.backstory));
+                }
+                
+                if !character.goals.is_empty() {
+                    export.push_str(&format!("**Goals:** {}\n\n", character.goals));
+                }
+                
+                if !character.relationships.is_empty() {
+                    export.push_str("**Relationships:**\n");
+                    for (other_char, relationship) in &character.relationships {
+                        export.push_str(&format!("- {}: {}\n", other_char, relationship));
+                    }
+                    export.push('\n');
+                }
+            }
+        }
+
+        // Export world elements
+        if !self.story.world_elements.is_empty() {
+            export.push_str("## World Elements\n\n");
+            for (name, element) in &self.story.world_elements {
+                export.push_str(&format!("### {} ({})\n\n", name, element.element_type));
+                export.push_str(&format!("**Description:** {}\n\n", element.description));
+                
+                if !element.properties.is_empty() {
+                    export.push_str("**Properties:**\n");
+                    for (key, value) in &element.properties {
+                        export.push_str(&format!("- {}: {}\n", key, value));
+                    }
+                    export.push('\n');
+                }
+            }
+        }
+
+        // Export chapters
+        if !self.story.chapters.is_empty() {
+            export.push_str("## Chapters\n\n");
+            for (i, chapter) in self.story.chapters.iter().enumerate() {
+                export.push_str(&format!("### Chapter {}: {}\n\n", i + 1, chapter.title));
+                
+                if !chapter.summary.is_empty() {
+                    export.push_str(&format!("**Summary:** {}\n\n", chapter.summary));
+                }
+                
+                if !chapter.plot_points.is_empty() {
+                    export.push_str("**Plot Points:**\n");
+                    for point in &chapter.plot_points {
+                        export.push_str(&format!("- {}\n", point));
+                    }
+                    export.push('\n');
+                }
+                
+                export.push_str(&format!("**Word Count:** {}\n\n", chapter.word_count));
+                export.push_str(&format!("{}\n\n", chapter.content));
+            }
+        }
+
+        // Export story notes
+        if !self.story.story_notes.is_empty() {
+            export.push_str("## Story Notes\n\n");
+            for (i, note) in self.story.story_notes.iter().enumerate() {
+                export.push_str(&format!("{}. {}\n", i + 1, note));
+            }
+            export.push('\n');
         }
 
         ToolResult {

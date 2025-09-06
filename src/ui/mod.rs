@@ -11,4 +11,3 @@ mod message;       // Message display component
 pub mod settings;  // Settings configuration page (public for routing)
 pub mod slideout;
 pub mod chat_log;
-mod story;
