@@ -241,6 +241,7 @@ fn OpenRouterSettings(
     ps: Signal<ProviderSettings>,
     onchange: Callback<ProviderSettings, ()>,
 ) -> Element {
+    let mut filter = use_signal(|| "".to_string());
     let mut available_models = use_signal(|| Vec::<String>::new());
 
     let handle_key_change = move |e: Event<FormData>| async move {
@@ -289,6 +290,11 @@ fn OpenRouterSettings(
     } else {
         ("".to_string(), None)
     };
+
+    let filtered_models: Vec<String> = available_models()
+        .into_iter()
+        .filter(|s| s.to_lowercase().contains(&*filter.read()))
+        .collect();
     
     rsx! {
         div { style: "
@@ -308,7 +314,13 @@ fn OpenRouterSettings(
                     style: "max-height: 2em; margin-left: 1em;",
                     onclick: refresh_model_list,
                     "⟳ refresh list"
-                } 
+                }
+                input {
+                    value: filter,
+                    oninput: move |e| {
+                        filter.set(e.value());
+                    },
+                }
             }
             div { style: "
                 display: flex;
@@ -316,7 +328,7 @@ fn OpenRouterSettings(
                 ",
                 BoxSelect {
                     value: model,
-                    options: available_models(),
+                    options: filtered_models,
                     on_select: set_model,
                 }
             }
