@@ -112,8 +112,8 @@ fn Layout() -> Element {
         div {
             style: "
             position: fixed;
-            top: 1rem;
-            right: 1rem;
+            top: 6rem;
+            left: 1rem;
             z-index: 9;
             display: flex;
             flex-direction: column;

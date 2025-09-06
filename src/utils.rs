@@ -69,6 +69,7 @@ pub async fn call_tools(
     for tc in tool_calls.into_iter() {
         warn!("> Calling {tc:#?}");
         let Some(f) = tc.function.as_ref() else {
+            warn!("no function");
             continue; // Skip tool calls without function information
         };
         
@@ -81,6 +82,8 @@ pub async fn call_tools(
             .unwrap_or_else(|| "")
             .split("--")
             .collect();
+
+        warn!("function parts: {parts:?}");
             
         if parts.len() == 2 {
             let server_id = parts[0];
@@ -94,12 +97,14 @@ pub async fn call_tools(
                 .unwrap_or_else(|| "{}");
             let arguments: Value = serde_json::from_str(params_str)?;
 
+            warn!("arguments: {arguments:?}");
+
             // Log the tool call for debugging
-            eprintln!("Calling {server_id}/{tool_name}({arguments:?})");
+            warn!("Calling {server_id}/{tool_name}({arguments:?})");
             
             // Execute the tool call on the MCP server
             let result = host.tool_call(server_id, tool_name, arguments).await?;
-            
+            warn!("result: {result:?}");
             // Convert tool result to text messages
             // Filter for text content and combine into a single message
             let messages: Vec<String> = result

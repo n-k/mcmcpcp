@@ -8,56 +8,7 @@ use crate::mcp::{
     fetch::FetchMcpServer, host::{MCPHost, MCPServer}, McpTool, ToolResult, ToolResultContent
 };
 
-#[async_trait::async_trait]
-pub trait Toolset {
-    fn get_system_prompt(&self) -> String;
-
-    fn get_mcp_host(&self) -> Arc<MCPHost>;
-
-    async fn get_state(&self) -> Value;
-
-    async fn get_markdown_repr(&self) -> Option<String>;
-}
-
-#[derive(Clone)]
-pub struct ChatTools {
-    pub host: Arc<MCPHost>,
-}
-
-impl ChatTools {
-    #[allow(unused)]
-    pub fn new() -> Self {
-        let mut servers: HashMap<String, Box<dyn MCPServer>> = HashMap::new();
-        servers.insert(
-            "fetch".into(),
-            Box::new(FetchMcpServer {}),
-        );
-        let host =
-            MCPHost::new_with_tools(servers, Duration::from_secs(10), Duration::from_secs(10));
-        Self { host: Arc::new(host) }
-    }
-}
-
-#[async_trait::async_trait]
-impl Toolset for ChatTools {
-    fn get_system_prompt(&self) -> String {
-        "You are a helpful assistant. 
-        You have access to tools which you can call to help the user in the user's task."
-        .into()
-    }
-
-    fn get_mcp_host(&self) -> Arc<MCPHost> {
-        self.host.clone()
-    }
-
-    async fn get_state(&self) -> Value {
-        Value::Null
-    }
-
-    async fn get_markdown_repr(&self) -> Option<String> {
-        None
-    }
-}
+use super::Toolset;
 
 #[derive(Clone)]
 pub struct StoryWriter {
@@ -89,6 +40,8 @@ impl Toolset for StoryWriter {
         in the user's task.
         For writing, you must only use provided tools.
         You MUST NOT put the story in message.
+        You MUST NOT put story content, like chapters, new text etc in chat or message
+        Only use the tools to add them to the story.
         You must understand any instructions the user gives you
         and only say \"OK\" if you understnad, or ask clarifying questions.
         "
@@ -253,6 +206,19 @@ impl MCPServer for CreativeWriterMcpServer {
                         "plot_points": {"type": "array", "items": {"type": "string"}, "description": "Updated plot points for this chapter"}
                     },
                     "required": ["chapter_index"]
+                }),
+            },
+            McpTool {
+                name: "append_to_chapter".into(),
+                description: Some("Append content to an existing chapter without replacing existing content.".into()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "chapter_index": {"type": "number", "description": "Chapter index (0-based)"},
+                        "content": {"type": "string", "description": "Content to append to the chapter"},
+                        "separator": {"type": "string", "description": "Text to insert between existing and new content", "default": "\n\n"}
+                    },
+                    "required": ["chapter_index", "content"]
                 }),
             },
             McpTool {
@@ -524,6 +490,7 @@ impl MCPServer for CreativeWriterMcpServer {
             "update_story_metadata" => self.update_story_metadata(args),
             "create_chapter" => self.create_chapter(args),
             "update_chapter" => self.update_chapter(args),
+            "append_to_chapter" => self.append_to_chapter(args),
             "delete_chapter" => self.delete_chapter(args),
             "move_chapter" => self.move_chapter(args),
             "get_chapter" => self.get_chapter(args),
@@ -705,6 +672,62 @@ impl CreativeWriterMcpServer {
                 r#type: "text".to_string(),
                 text: Some(format!("Chapter {} '{}' updated successfully. Updated fields: {}", 
                     chapter_index, chapter.title, updated_fields.join(", "))),
+                ..Default::default()
+            }],
+            is_error: Some(false),
+        }
+    }
+
+    fn append_to_chapter(&mut self, args: Value) -> ToolResult {
+        let chapter_index = args.get("chapter_index")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+
+        if chapter_index >= self.story.chapters.len() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some(format!("Chapter index {} is out of range. Story has {} chapters.", 
+                        chapter_index, self.story.chapters.len())),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            };
+        }
+
+        let content_to_append = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
+        
+        if content_to_append.is_empty() {
+            return ToolResult {
+                content: vec![ToolResultContent {
+                    r#type: "text".to_string(),
+                    text: Some("Content to append is required.".to_string()),
+                    ..Default::default()
+                }],
+                is_error: Some(true),
+            };
+        }
+
+        let separator = args.get("separator").and_then(|v| v.as_str()).unwrap_or("\n\n");
+        
+        let chapter = &mut self.story.chapters[chapter_index];
+        let original_word_count = chapter.word_count;
+        
+        // Append the content with separator
+        if !chapter.content.is_empty() {
+            chapter.content.push_str(separator);
+        }
+        chapter.content.push_str(content_to_append);
+        
+        // Recalculate word count
+        chapter.word_count = chapter.content.split_whitespace().count();
+        let words_added = chapter.word_count - original_word_count;
+
+        ToolResult {
+            content: vec![ToolResultContent {
+                r#type: "text".to_string(),
+                text: Some(format!("Successfully appended {} words to chapter {} '{}'. Total word count is now {}.", 
+                    words_added, chapter_index, chapter.title, chapter.word_count)),
                 ..Default::default()
             }],
             is_error: Some(false),
