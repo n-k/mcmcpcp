@@ -5,21 +5,19 @@
 //! conversation flow between the user, LLM, and MCP tools.
 
 use dioxus::{
-    logger::tracing::{info, warn},
+    logger::tracing::warn,
     prelude::*,
 };
-use serde_json::{Value, json};
+use serde_json::json;
 
 use crate::{
     app_settings::{Chat, Toolsets}, 
-    llm::{FunctionDelta, ToolCallDelta}, 
     storage::{get_storage, Storage}, 
     toolset::{chat::ChatTools, story::Story, story::StoryWriter, Toolset}, 
-    utils::{call_tools, tools_to_message_objects}, 
-    Route
+    utils::{run_tools_loop, save_chat_to_storage}
 };
 use crate::{
-    llm::{ContentPart, LlmClient, Message, Tool}, // LLM types and client
+    llm::{ContentPart, LlmClient, Message}, // LLM types and client
     ui::{
         chat_input::ChatInput, // Component for message input
         message::MessageEl,    // Component for displaying individual messages
@@ -202,128 +200,50 @@ pub fn Home(
     // Current streaming message content (for real-time display)
     let mut streaming_msg: Signal<Option<String>> = use_signal(|| None);
 
+    // Use the extracted save_chat_to_storage utility function
     let save_chat = move || async move {
-        let storage = match get_storage().await {
-            Ok(s) => Some(s),
-            Err(e) => {
-                warn!("Could not get storage: {e:?}");
-                None
-            }
-        };
         let ts = &*toolset.read();
-        let value = ts.get_state().await;
-        chat.with_mut(move |c| c.value = value);
-        let md = ts.get_markdown_repr().await;
-        display.with_mut(|d| *d = md);
-        let Some(stg) = storage else { return Ok(()) };
-        let new_chat_id = stg.save_chat(&chat()).await?;
-        chat.with_mut(|c| {
-            c.id = Some(new_chat_id);
-        });
-        if id() != Some(new_chat_id) {
-            nav.push(Route::ChatEl { id: new_chat_id });
-        }
-        anyhow::Ok(())
+        save_chat_to_storage(&mut chat, ts, &mut display, id, &nav).await
     };
 
     // Flag to show warning when too many tool calls are made
     let mut tool_count_warning: Signal<bool> = use_signal(|| false);
 
-    // Main loop for handling LLM responses and tool execution.
-    //
-    // This function manages the conversation flow:
-    // 1. Sends the current conversation to the LLM
-    // 2. Processes streaming responses (text and tool calls)
-    // 3. Executes any requested tools
-    // 4. Continues the loop until no more tools are called
-    // 5. Implements safety limits to prevent runaway tool execution
-    let run_tools_loop = move || async move {
+    // Error state for handling run_tools_loop errors
+    let mut error_state: Signal<Option<String>> = use_signal(|| None);
+
+    // Main loop for handling LLM responses and tool execution using extracted utility
+    let run_tools_loop_impl = move || async move {
         // Ensure we have all required components
         let Some(model) = model() else {
-            return anyhow::Ok(());
+            return anyhow::Ok(0u8);
         };
-        let Some(model) = model else { return Ok(()) };
+        let Some(model) = model else { return Ok(0u8) };
         let Some(client) = client() else {
-            return Ok(());
+            return Ok(0u8);
         };
         let Some(client) = client else {
-            return Ok(());
+            return Ok(0u8);
         };
 
-        // Get MCP host and available tools
         let ts = &*toolset.read();
-        let host = ts.get_mcp_host();
-        let tools = host.list_tools().await;
-        // let host = consume_context::<Arc<MCPHost>>();
-        // let tools = host.list_tools().await;
-        let tools: Vec<Tool> = tools_to_message_objects(tools);
+        
+        // Use the extracted utility function
+        let count = run_tools_loop(
+            &client,
+            &model,
+            &mut chat,
+            ts,
+            &mut streaming_msg,
+            save_chat,
+        ).await?;
 
-        let mut count = 0u8; // Safety counter to prevent infinite loops
-        loop {
-            // Start streaming response from LLM
-            let mut stream = client.stream(&model, &chat.read().messages, &tools).await?;
-            let mut text = "".to_string();
-            let mut tool_calls = vec![];
-
-            // Process streaming response chunks
-            while let Some(e) = stream.recv().await {
-                let Some(ch) = e.choices.first() else { break };
-
-                // Handle text content (assistant response)
-                if let Some(t) = &ch.delta.content {
-                    if !t.is_empty() {
-                        text = format!("{}{}", &text, t);
-                        // Update streaming display in real-time
-                        streaming_msg.set(Some(text.clone()));
-                    }
-                }
-
-                // Handle tool calls
-                if let Some(tools) = &ch.delta.tool_calls {
-                    info!("{:?}", tools);
-                    tool_calls.extend_from_slice(tools);
-                }
-            }
-
-            // Clear streaming display once complete
-            streaming_msg.set(None);
-            let text = text.trim();
-
-            // Process the final response
-            if !text.is_empty() {
-                // Handle special tool call format (fallback for some models)
-                if let Ok(Some(tcd)) = extract_wierd_tool_calls(&text) {
-                    tool_calls.push(tcd);
-                } else {
-                    // Regular assistant message
-                    chat.with_mut(|c| {
-                        c.messages.push(Message::Assistant {
-                            content: Some(text.to_string()),
-                        });
-                    });
-                }
-            }
-
-            // If no tools were called, we're done
-            if tool_calls.is_empty() {
-                save_chat().await?;
-                return Ok(());
-            }
-
-            // Execute the requested tools
-            let new_messages = call_tools(tool_calls, host.clone()).await?;
-            chat.with_mut(|c| {
-                c.messages.extend(new_messages);
-            });
-
-            // Safety check: prevent runaway tool execution
-            count += 1;
-            if count > 10 {
-                tool_count_warning.set(true);
-                save_chat().await?;
-                return Ok(());
-            }
+        // Handle tool count warning if too many tools were executed
+        if count > 10 {
+            tool_count_warning.set(true);
         }
+
+        Ok(count)
     };
 
     // Handles sending a new user message and starting the conversation loop.
@@ -331,6 +251,9 @@ pub fn Home(
     // Adds the user's message to the chat history and initiates the LLM
     // response and tool execution loop.
     let send_msg = move |s: String| async move {
+        // Clear any previous errors
+        error_state.set(None);
+        
         // Add user message to chat history
         chat.with_mut(|c| {
             c.messages.push(Message::User {
@@ -339,7 +262,9 @@ pub fn Home(
         });
 
         // Start the LLM response and tool execution loop
-        run_tools_loop().await
+        if let Err(e) = run_tools_loop_impl().await {
+            error_state.set(Some(format!("Error during conversation: {}", e)));
+        }  
     };
 
     // Renders the currently streaming message if one exists.
@@ -352,16 +277,16 @@ pub fn Home(
         }
     });
     let display = display.cloned();
+    let chat_class = if display.is_some() { "small" } else { "large" };
 
     // Render the main chat interface
     rsx! {
         div { 
             class: "content",
             div {
+                class: "chat {chat_class}",
                 style: "
                 height: 100%;
-                min-width: 50%;
-                flex-grow: 1;
                 overflow: hidden;
                 display: flex;
                 flex-direction: column;
@@ -382,23 +307,77 @@ pub fn Home(
                     // Show tool count warning if too many tools have been executed
                     if tool_count_warning() {
                         div {
+                            style: "
+                            background-color: #fff3cd;
+                            border: 1px solid #ffeaa7;
+                            border-radius: 4px;
+                            padding: 1em;
+                            margin: 1em 0;
+                            ",
                             "10 tool calls have been made without user intervention."
-                            button {
-                                onclick: move |_| async move {
-                                    tool_count_warning.set(false);
-                                    // Continue with more tool execution
-                                    if let Err(e) = run_tools_loop().await {
-                                        eprintln!("{e:?}");
-                                    }
-                                },
-                                "Continue"
+                            div {
+                                style: "margin-top: 0.5em;",
+                                button {
+                                    style: "margin-right: 0.5em;",
+                                    onclick: move |_| async move {
+                                        tool_count_warning.set(false);
+                                        error_state.set(None);
+                                        // Continue with more tool execution
+                                        if let Err(e) = run_tools_loop_impl().await {
+                                            error_state.set(Some(format!("Error during tool execution: {}", e)));
+                                        }
+                                    },
+                                    "Continue"
+                                }
+                                button {
+                                    onclick: move |_| async move {
+                                        // Stop tool execution
+                                        tool_count_warning.set(false);
+                                    },
+                                    "Stop"
+                                }
                             }
-                            button {
-                                onclick: move |_| async move {
-                                    // Stop tool execution
-                                    tool_count_warning.set(false);
-                                },
-                                "Stop"
+                        }
+                    }
+
+                    // Show error message if there's an error
+                    if let Some(error_msg) = error_state() {
+                        div {
+                            style: "
+                            background-color: #f8d7da;
+                            border: 1px solid #f5c6cb;
+                            border-radius: 4px;
+                            padding: 1em;
+                            margin: 1em 0;
+                            color: #721c24;
+                            ",
+                            div {
+                                style: "font-weight: bold; margin-bottom: 0.5em;",
+                                "Error occurred:"
+                            }
+                            div {
+                                style: "margin-bottom: 1em; font-family: monospace; white-space: pre-wrap;",
+                                "{error_msg}"
+                            }
+                            div {
+                                button {
+                                    style: "margin-right: 0.5em; background-color: #dc3545; color: white; border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;",
+                                    onclick: move |_| async move {
+                                        error_state.set(None);
+                                        // Clear any previous errors and retry
+                                        if let Err(e) = run_tools_loop_impl().await {
+                                            error_state.set(Some(format!("Error during retry: {}", e)));
+                                        }
+                                    },
+                                    "Retry"
+                                }
+                                button {
+                                    style: "background-color: #6c757d; color: white; border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;",
+                                    onclick: move |_| async move {
+                                        error_state.set(None);
+                                    },
+                                    "Cancel"
+                                }
                             }
                         }
                     }
@@ -422,74 +401,23 @@ pub fn Home(
                             // Process the message
                             {
                                 busy.set(true);
-                                if let Err(e) = send_msg(s).await {
-                                    warn!("{e:?}");
-                                }
+                                send_msg(s).await;
                                 busy.set(false);
                             }
                         }),
                     }
                 }
             }
-            if chat().chat_type == Toolsets::Story {
-                {
-                    if let Some(d) = display {
-                        rsx!{
-                            div {
-                                style: "
-                                height: 100%;
-                                overflow: auto;
-                                ",
-                                {crate::md2rsx::markdown_to_rsx(&d)}
-                            }
-                        }
-                    } else {
-                        rsx! {}
-                    }
+            if let Some(d) = display {
+                div {
+                    class: "tool-display",
+                    style: "
+                    height: 100%;
+                    overflow: auto;
+                    ",
+                    {crate::md2rsx::markdown_to_rsx(&d)}
                 }
             }
         }
     }
-}
-
-fn extract_wierd_tool_calls(text: &str) -> anyhow::Result<Option<ToolCallDelta>> {
-    if text.starts_with("[TOOL_CALLS]") {
-        let t = text.replace("[TOOL_CALLS]", "");
-        let parts: Vec<String> = t.split("<SPECIAL_32>").map(|s| s.into()).collect();
-        if parts.len() < 2 { return Ok(None) }
-        return Ok(Some(ToolCallDelta {
-            id: Some("...".into()),
-            kind: Some("function".into()),
-            function: Some(FunctionDelta {
-                name: Some(parts[0].to_string()),
-                arguments: Some(parts[1].clone()),
-            }),
-        }));
-    }
-
-    if let Ok(Value::Object(m)) = serde_json::from_str(text) {
-        if let Some(name) = m.get("name").map(|x| x.as_str()).flatten() {
-            if let Some(args) = m.get("arguments") {
-                let arguments = if let Some(s) = args.as_str() {
-                    Some(s.to_string())
-                } else if let Some(m) = args.as_object() {
-                    let args_str = serde_json::to_string(&Value::Object(m.clone()))?;
-                    Some(args_str)
-                } else {
-                    None
-                };
-
-                return Ok(Some(ToolCallDelta {
-                    id: Some("...".into()),
-                    kind: Some("function".into()),
-                    function: Some(FunctionDelta {
-                        name: Some(name.to_string()),
-                        arguments,
-                    }),
-                }));
-            }
-        }
-    }
-
-    Ok(None)
 }

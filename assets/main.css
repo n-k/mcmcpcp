@@ -122,6 +122,23 @@ pre code::before {
     width: 100%;
 }
 
+.content > .chat.large {
+    width: 100%;
+}
+
+.content > .chat.small {
+    width: 25em;
+    flex-grow: 0;
+}
+
+.content > .tool-display {
+    flex-grow: 1;
+    /* margin: 1em; */
+    margin-bottom: 3em;
+    padding: 1em;
+    border: 1px solid silver;
+}
+
 .box-select {
     width: 100%;
     max-height: 10em;
