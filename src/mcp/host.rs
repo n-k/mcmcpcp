@@ -55,6 +55,17 @@ pub struct MCPHost {
 }
 
 impl MCPHost {
+    /// Creates a new MCP Host with defaults.
+    /// 
+    /// # Returns
+    /// A new Host instance ready to manage MCP servers
+    pub fn new() -> Self {
+        Self::new_with_timeouts(
+            Duration::from_secs(10), 
+            Duration::from_secs(10),
+        )
+    }
+
     /// Creates a new MCP Host with the specified timeouts.
     /// 
     /// Initializes the host with a built-in fetch server that provides web access
@@ -66,16 +77,12 @@ impl MCPHost {
     /// 
     /// # Returns
     /// A new Host instance ready to manage MCP servers
-    pub fn new(request_timeout: Duration, startup_timeout: Duration) -> Self {
+    pub fn new_with_timeouts(request_timeout: Duration, startup_timeout: Duration) -> Self {
         let mut servers: HashMap<String, Box<dyn MCPServer>> = HashMap::new();
         // Add the built-in fetch server
         servers.insert("builtin".into(), Box::new(FetchMcpServer {}));
 
-        Self {
-            servers: RwLock::new(servers),
-            request_timeout,
-            startup_timeout,
-        }
+        Self::new_with_tools(servers, request_timeout, startup_timeout)
     }
 
     /// Creates a new MCP Host with the specified tools and timeouts.

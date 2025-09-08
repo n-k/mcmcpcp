@@ -28,7 +28,7 @@ use serde_json::Value;
 /// 
 /// This defines how to start and identify an MCP server, including
 /// the command to execute and any arguments needed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerSpec {
     /// Unique identifier for this server instance
     pub id: String,

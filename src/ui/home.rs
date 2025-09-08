@@ -4,6 +4,8 @@
 //! It handles message display, streaming responses, tool execution, and manages the
 //! conversation flow between the user, LLM, and MCP tools.
 
+use std::sync::Arc;
+
 use dioxus::{
     logger::tracing::warn,
     prelude::*,
@@ -11,10 +13,7 @@ use dioxus::{
 use serde_json::json;
 
 use crate::{
-    app_settings::{AppSettings, Chat, Toolsets}, 
-    storage::{get_storage, Storage}, 
-    toolset::{chat::ChatTools, story::{Story, StoryWriter}, Toolset}, 
-    utils::{run_tools_loop, save_chat_to_storage}
+    app_settings::{AppSettings, Chat, Toolsets}, mcp::host::MCPHost, storage::{get_storage, Storage}, toolset::{chat::ChatTools, story::{Story, StoryWriter}, Toolset}, utils::{run_tools_loop, save_chat_to_storage}
 };
 use crate::{
     llm::{ContentPart, LlmClient, Message}, // LLM types and client
@@ -66,9 +65,10 @@ pub fn Home(
 ) -> Element {
     let nav = navigator();
     let mut toolset: Signal<Box<dyn Toolset>> = use_signal(|| {
+        let host = consume_context::<Arc<MCPHost>>();
         let ts: Box<dyn Toolset> = match chat_type {
             Toolsets::Chat => {
-                Box::new(ChatTools::new())
+                Box::new(ChatTools::new(host))
             },
             Toolsets::Story => {
                 Box::new(StoryWriter::new(Default::default()))
@@ -113,6 +113,7 @@ pub fn Home(
             return;
         };
         if let Ok(Some(ch)) = storage.get_chat(id).await {
+            let host = consume_context::<Arc<MCPHost>>();
             let ts: Box<dyn Toolset> = if ch.chat_type == Toolsets::Story {
                 let story: Story = serde_json::from_value(ch.value.clone())
                     .unwrap_or_else(|e| {
@@ -121,7 +122,7 @@ pub fn Home(
                     });
                 Box::new(StoryWriter::new(story))
             } else {
-                Box::new(ChatTools::new())
+                Box::new(ChatTools::new(host))
             };
             display.set(ts.get_markdown_repr().await);
             toolset.set(ts);

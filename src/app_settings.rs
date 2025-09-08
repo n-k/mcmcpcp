@@ -1,13 +1,14 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::llm::Message;
+use crate::{llm::Message, mcp::ServerSpec};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppSettings {
     pub id: Option<u32>,
     pub provider: ProviderSettings,
     pub last_chat_id: Option<u32>,
+    pub mcp_servers: Option<Vec<ServerSpec>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

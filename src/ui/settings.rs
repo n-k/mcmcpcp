@@ -39,6 +39,7 @@ pub fn Settings(props: SettingsProps) -> Element {
                 model: None,
             },
             last_chat_id: None,
+            mcp_servers: None,
         });
         provider.set(s.provider.clone());
         s

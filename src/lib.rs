@@ -9,6 +9,8 @@
 //! The application is structured as a single-page application with routing between
 //! the main chat interface and settings configuration.
 
+use std::sync::Arc;
+
 use anyhow::bail;
 use dioxus::logger::tracing::warn;
 use dioxus::prelude::*;
@@ -32,6 +34,7 @@ use ui::home::NewStory;
 use ui::settings::Settings;
 use ui::slideout::Slideout;
 
+use crate::mcp::host::MCPHost;
 use crate::storage::Storage;
 use crate::storage::get_storage;
 use crate::ui::chat_log::ChatLog;
@@ -62,6 +65,9 @@ const SETTINGS_ICON: Asset = asset!("/assets/settings.svg");
 #[component]
 pub fn App() -> Element {
     let mut settings: Signal<Option<AppSettings>> = use_signal(|| None);
+    use_context_provider(|| Arc::new(MCPHost::new()));
+    use_context_provider(|| settings);
+
     let init = use_resource(move || async move {
         let storage = match get_storage().await {
             Ok(s) => s,
@@ -74,7 +80,6 @@ pub fn App() -> Element {
         settings.set(s);
         anyhow::Ok(())
     });
-    use_context_provider(|| settings);
 
     rsx! {
         // Set up document head with favicon and stylesheet
