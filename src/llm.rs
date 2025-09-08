@@ -238,6 +238,7 @@ impl LlmClient {
                     }
                     
                     // Parse and send the stream event
+                    // warn!("Stream event: {data}");
                     if let Ok(event) = serde_json::from_str::<StreamEvent>(data) {
                         if let Err(e) = tx.send(event).await {
                             warn!("Could not send response event: {e:?}");
@@ -291,6 +292,7 @@ pub enum Message {
     Assistant {
         /// The assistant's response text (None if only tool calls)
         content: Option<String>,
+        tool_calls: Option<Vec<ToolCallDelta>>,
     },
     /// Tool result message containing the output of a tool call
     Tool {
@@ -405,7 +407,7 @@ pub struct Delta {
 /// 
 /// Tool calls may be streamed in parts, with the function name and arguments
 /// being built up over multiple deltas.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct ToolCallDelta {
     /// Unique identifier for this tool call
     pub id: Option<String>,
@@ -420,7 +422,7 @@ pub struct ToolCallDelta {
 /// 
 /// The function name and arguments may be streamed separately and need to be
 /// accumulated to form the complete function call.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct FunctionDelta {
     /// Function name (if this is the first delta for this call)
     pub name: Option<String>,

@@ -275,6 +275,7 @@ where
         let mut stream = client.stream(model, &chat.read().messages, &tools).await?;
         let mut text = "".to_string();
         let mut tool_calls = vec![];
+        let mut current_tool_call: Option<ToolCallDelta> = None;
 
         // Process streaming response chunks
         while let Some(e) = stream.recv().await {
@@ -292,27 +293,55 @@ where
             // Handle tool calls
             if let Some(tools) = &ch.delta.tool_calls {
                 info!("{:?}", tools);
-                tool_calls.extend_from_slice(tools);
+                for t in tools {
+                    if current_tool_call.is_none() {
+                        current_tool_call = Some(t.clone());
+                    } else {
+                        current_tool_call.as_mut().map(|c| {
+                            let existing = c.clone().function.map(|fd| {
+                                fd.arguments.clone().unwrap_or_else(|| "".to_string())
+                            }).unwrap_or_else(|| "".to_string());
+                            let delta = t.clone().function.map(|fd| {
+                                fd.arguments.clone().unwrap_or_else(|| "".to_string())
+                            }).unwrap_or_else(|| "".to_string());
+                            c.function.as_mut().map(|fd| fd.arguments = Some(format!("{existing}{delta}")));
+                        });
+                    }
+                }
             }
+
+            if ch.finish_reason.is_some() {
+                // flush tools
+                if let Some(tc) = current_tool_call.take() {
+                    tool_calls.push(tc);
+                }
+            }
+        }
+
+        if let Some(tc) = current_tool_call.take() {
+            tool_calls.push(tc);
         }
 
         // Clear streaming display once complete
         streaming_msg.set(None);
-        let text = text.trim();
+        text = text.trim().to_string();
 
         // Process the final response
         if !text.is_empty() {
             // Handle special tool call format (fallback for some models)
             if let Ok(Some(tcd)) = extract_wierd_tool_calls(&text) {
                 tool_calls.push(tcd);
-            } else {
-                // Regular assistant message
-                chat.with_mut(|c| {
-                    c.messages.push(Message::Assistant {
-                        content: Some(text.to_string()),
-                    });
-                });
+                text = "".to_string();
             }
+        }
+
+        if !text.is_empty() || !tool_calls.is_empty() {
+            chat.with_mut(|c| {
+                c.messages.push(Message::Assistant {
+                    content: Some(text.to_string()),
+                    tool_calls: Some(tool_calls.clone()),
+                });
+            });
         }
 
         // If no tools were called, we're done
@@ -326,11 +355,11 @@ where
         chat.with_mut(|c| {
             c.messages.extend(new_messages);
         });
+        save_chat_fn().await?;
 
         // Safety check: prevent runaway tool execution
         count += 1;
         if count > 10 {
-            save_chat_fn().await?;
             return Ok(count);
         }
     }

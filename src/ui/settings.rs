@@ -56,6 +56,8 @@ pub fn Settings(props: SettingsProps) -> Element {
                 warn!("Could not save settings: {e:?}");
             }
         }
+        let mut settings_ctx = consume_context::<Signal<Option<AppSettings>>>();
+        settings_ctx.set(Some(s));
         settings.restart();
     };
     let handle_provider_change = move |ps: ProviderSettings| async move {

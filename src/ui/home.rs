@@ -11,9 +11,9 @@ use dioxus::{
 use serde_json::json;
 
 use crate::{
-    app_settings::{Chat, Toolsets}, 
+    app_settings::{AppSettings, Chat, Toolsets}, 
     storage::{get_storage, Storage}, 
-    toolset::{chat::ChatTools, story::Story, story::StoryWriter, Toolset}, 
+    toolset::{chat::ChatTools, story::{Story, StoryWriter}, Toolset}, 
     utils::{run_tools_loop, save_chat_to_storage}
 };
 use crate::{
@@ -129,17 +129,8 @@ pub fn Home(
         }
     });
     let settings = use_resource(move || async move {
-        let storage = match get_storage().await {
-            Ok(s) => Some(s),
-            Err(e) => {
-                warn!("Could not get storage: {e:?}");
-                None
-            }
-        };
-        let Some(storage) = storage else {
-            return None;
-        };
-        let settings = storage.load_settings().await.unwrap();
+        let settings_ctx = consume_context::<Signal<Option<AppSettings>>>();
+        let settings = settings_ctx.read().clone();
         settings
     });
     // Initialize LLM client from settings
@@ -228,7 +219,7 @@ pub fn Home(
 
         let ts = &*toolset.read();
         
-        // Use the extracted utility function
+        error_state.set(None);
         let count = run_tools_loop(
             &client,
             &model,
@@ -282,12 +273,10 @@ pub fn Home(
     // Render the main chat interface
     rsx! {
         div { 
-            class: "content",
+            class: "content {chat_class}",
             div {
                 class: "chat {chat_class}",
                 style: "
-                height: 100%;
-                overflow: hidden;
                 display: flex;
                 flex-direction: column;
                 ",
@@ -412,7 +401,6 @@ pub fn Home(
                 div {
                     class: "tool-display",
                     style: "
-                    height: 100%;
                     overflow: auto;
                     ",
                     {crate::md2rsx::markdown_to_rsx(&d)}

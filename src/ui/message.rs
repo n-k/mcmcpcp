@@ -8,7 +8,7 @@ pub fn MessageEl(msg: Message) -> Element {
         Message::System { content } => {
             ("message system-message", true, content)
         }
-        Message::Assistant { content } => {
+        Message::Assistant { content, .. } => {
             ("message ai-message", false, content.unwrap_or_else(|| "".to_string()))
         }
         Message::Tool { content , .. } => {
