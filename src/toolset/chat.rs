@@ -1,12 +1,9 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use serde_json::Value;
 
 use crate::{
-    mcp::{
-        fetch::FetchMcpServer,
-        host::{MCPHost, MCPServer},
-    },
+    mcp::host::MCPHost,
     toolset::Toolset,
 };
 

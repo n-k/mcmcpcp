@@ -27,8 +27,8 @@ use serde_json::Value;
 /// Specification for an MCP server configuration.
 /// 
 /// This defines how to start and identify an MCP server, including
-/// the command to execute and any arguments needed.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// the command to execute, any arguments needed, and environment variables.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ServerSpec {
     /// Unique identifier for this server instance
     pub id: String,
@@ -36,13 +36,16 @@ pub struct ServerSpec {
     pub cmd: String,
     /// Command-line arguments to pass to the server
     pub args: Vec<String>,
+    /// Environment variables to set for the server process
+    #[serde(default)]
+    pub env: std::collections::HashMap<String, String>,
 }
 
 /// Represents a tool provided by an MCP server.
 /// 
 /// Tools are functions that can be called by the LLM to perform actions
 /// or retrieve information from external systems.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct McpTool {
     /// Name of the tool (used for invocation)
@@ -57,7 +60,7 @@ pub struct McpTool {
 /// 
 /// This allows the system to route tool calls back to the correct
 /// MCP server for execution.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ToolDescriptor {
     /// ID of the server that provides this tool
     pub server_id: String,

@@ -62,7 +62,7 @@ impl MCPHost {
     pub fn new() -> Self {
         Self::new_with_timeouts(
             Duration::from_secs(10), 
-            Duration::from_secs(10),
+            Duration::from_secs(60),
         )
     }
 

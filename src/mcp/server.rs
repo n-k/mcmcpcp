@@ -62,14 +62,20 @@ impl _McpServer {
         use tokio::time::timeout;
         use crate::mcp::transport::StdioTransport;
 
-        let mut child = tokio::process::Command::new(&spec.cmd)
-            .args(&spec.args)
+        let mut cmd = tokio::process::Command::new(&spec.cmd);
+        cmd.args(&spec.args)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
+        // Set environment variables
+        for (key, value) in &spec.env {
+            cmd.env(key, value);
+        }
+
+        let mut child = cmd
             .spawn()
             .with_context(|| format!("spawning {}", spec.id))?;
-        // tokio::time::sleep(Duration::from_secs(10)).await;
 
         let stdout = child.stdout.take().ok_or_else(|| anyhow!("no stdout"))?;
         let stderr = child.stderr.take().ok_or_else(|| anyhow!("no stderr"))?;

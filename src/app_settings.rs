@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use crate::{llm::Message, mcp::ServerSpec};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct AppSettings {
     pub id: Option<u32>,
     pub provider: ProviderSettings,

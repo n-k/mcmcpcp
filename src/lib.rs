@@ -33,6 +33,7 @@ use ui::home::NewChat;
 use ui::home::NewStory;
 use ui::settings::Settings;
 use ui::slideout::Slideout;
+use ui::mcp_tools::McpTools;
 
 use crate::mcp::host::MCPHost;
 use crate::storage::Storage;
@@ -55,6 +56,8 @@ const MAIN_CSS: Asset = asset!("/assets/main.css");
 const CHATS_ICON: Asset = asset!("/assets/chat_list.svg");
 // Settings icon
 const SETTINGS_ICON: Asset = asset!("/assets/settings.svg");
+// Tools icon
+const TOOLS_ICON: Asset = asset!("/assets/tools.svg");
 
 /// Root application component that sets up routing and global resources.
 ///
@@ -78,6 +81,50 @@ pub fn App() -> Element {
         };
         let s = storage.load_settings().await.unwrap();
         settings.set(s);
+        anyhow::Ok(())
+    });
+    let _ = use_resource(move || async move {
+        let st = settings();
+        warn!("resource reloading: {st:?}");
+        // sync MCP servers with settings
+        let host = consume_context::<Arc<MCPHost>>();
+        let Some(settings) = st else {
+            // clear any mcp servers in host
+            let mut wl = host.servers.write().await;
+            let keys: Vec<String> = wl.keys()
+                .map(|k| k.clone())
+                .collect();
+            for k in keys {
+                if k != "builtin" {
+                    warn!("removed {k}");
+                    wl.remove(&k);
+                } 
+            }
+            return anyhow::Ok(()) 
+        };
+        // now we will retain only servers in settings, and add any which are not there
+        let servers = settings.mcp_servers.unwrap_or_else(|| vec![]);
+        {
+            let mut wl = host.servers.write().await;
+            let keys: Vec<String> = wl.keys()
+                .map(|k| k.clone())
+                .collect();
+            for k in keys {
+                let server = servers.iter().find(|s| s.id == k);
+                if k != "builtin" && server.is_none() {
+                    warn!("removed {k} as it is not in specs list");
+                    wl.remove(&k);
+                }
+            }
+        }
+        // now iterate over servers and add if any are not present
+        let wl = host.servers.read().await;
+        for ss in servers {
+            if !wl.contains_key(&ss.id) {
+                host.add_server(ss).await?;
+            }
+        }
+
         anyhow::Ok(())
     });
 
@@ -162,6 +209,13 @@ fn Layout() -> Element {
                 },
                 img { src: CHATS_ICON }
             },
+            button {
+                onclick: move |_e: Event<MouseData>| {
+                    slideout_content.set(SlideoutContent::McpTools);
+                    slideout.set(true);
+                },
+                img { src: TOOLS_ICON }
+            },
         }
         Slideout {
             open: slideout,
@@ -180,6 +234,13 @@ fn Layout() -> Element {
                                 slideout.set(false);
                             }
                         }
+                    },
+                    SlideoutContent::McpTools => rsx! {
+                        McpTools {
+                            on_close: move |_| {
+                                slideout.set(false);
+                            }
+                        }
                     }
                 }
             },
@@ -192,6 +253,7 @@ fn Layout() -> Element {
 enum SlideoutContent {
     ChatLog,
     Settings,
+    McpTools,
 }
 
 /// 404 page component shown when a user navigates to an invalid route.

@@ -11,3 +11,4 @@ mod message;       // Message display component
 pub mod settings;  // Settings configuration page (public for routing)
 pub mod slideout;
 pub mod chat_log;
+pub mod mcp_tools;  // MCP tools display component
