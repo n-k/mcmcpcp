@@ -21,8 +21,8 @@ pub fn Collapsible(c: bool, children: Element) -> Element {
                 collapsed.toggle();
             },
             if collapsed() {
-                img { 
-                    src: EXPAND_ICON 
+                img {
+                    src: EXPAND_ICON
                 }
             } else {
                 img { src: COLLAPSE_ICON }

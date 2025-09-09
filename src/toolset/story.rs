@@ -2,10 +2,12 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::bail;
 use dioxus::{logger::tracing::warn, prelude::*};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::mcp::{
-    fetch::FetchMcpServer, host::{MCPHost, MCPServer}, McpTool, ToolResult, ToolResultContent
+    McpTool, ToolResult, ToolResultContent,
+    fetch::FetchMcpServer,
+    host::{MCPHost, MCPServer},
 };
 
 use super::Toolset;
@@ -18,17 +20,16 @@ pub struct StoryWriter {
 impl StoryWriter {
     pub fn new(story: Story) -> Self {
         let mut servers: HashMap<String, Box<dyn MCPServer>> = HashMap::new();
-        servers.insert(
-            "fetch".into(),
-            Box::new(FetchMcpServer {}),
-        );
+        servers.insert("fetch".into(), Box::new(FetchMcpServer {}));
         servers.insert(
             "creative_writer".into(),
             Box::new(CreativeWriterMcpServer::new(story)),
         );
         let host =
             MCPHost::new_with_tools(servers, Duration::from_secs(10), Duration::from_secs(10));
-        Self { host: Arc::new(host) }
+        Self {
+            host: Arc::new(host),
+        }
     }
 }
 
@@ -53,25 +54,27 @@ impl Toolset for StoryWriter {
     }
 
     async fn get_state(&self) -> Value {
-        let tr = self.host.tool_call(
-            "creative_writer", 
-            "export_story", 
-            json!({
-                "format": "structured",
-            })
-        ).await
-        .unwrap_or_else(|e| {
-            warn!("Error getting state from MCP server: {e:?}");
-            ToolResult { content: vec![
-                    ToolResultContent {
+        let tr = self
+            .host
+            .tool_call(
+                "creative_writer",
+                "export_story",
+                json!({
+                    "format": "structured",
+                }),
+            )
+            .await
+            .unwrap_or_else(|e| {
+                warn!("Error getting state from MCP server: {e:?}");
+                ToolResult {
+                    content: vec![ToolResultContent {
                         r#type: "text".into(),
                         text: Some("".into()),
                         ..Default::default()
-                    },
-                ], 
-                is_error: None 
-            }
-        });
+                    }],
+                    is_error: None,
+                }
+            });
         // let v = server
         //     .rpc(
         //         "tools/call",
@@ -110,24 +113,25 @@ impl Toolset for StoryWriter {
         //         warn!("Error getting state from MCP server: {e:?}");
         //         json!({})
         //     });
-        let tr = self.host
+        let tr = self
+            .host
             .tool_call(
-                "creative_writer", 
-                "export_story", 
+                "creative_writer",
+                "export_story",
                 json!({
                     "format": "markdown",
-                })
-            ).await
+                }),
+            )
+            .await
             .unwrap_or_else(|e| {
                 warn!("Error getting state from MCP server: {e:?}");
-                ToolResult { content: vec![
-                        ToolResultContent {
-                            r#type: "text".into(),
-                            text: Some("".into()),
-                            ..Default::default()
-                        },
-                    ], 
-                    is_error: None 
+                ToolResult {
+                    content: vec![ToolResultContent {
+                        r#type: "text".into(),
+                        text: Some("".into()),
+                        ..Default::default()
+                    }],
+                    is_error: None,
                 }
             });
         // let tr: ToolResult = serde_json::from_value(v).unwrap();
@@ -188,9 +192,7 @@ pub struct CreativeWriterMcpServer {
 
 impl CreativeWriterMcpServer {
     pub fn new(story: Story) -> Self {
-        Self {
-            story,
-        }
+        Self { story }
     }
 }
 
@@ -486,7 +488,7 @@ impl MCPServer for CreativeWriterMcpServer {
                     "required": []
                 }),
             },
-            
+
             // Export & Formatting
             McpTool {
                 name: "export_story".into(),
@@ -510,10 +512,7 @@ impl MCPServer for CreativeWriterMcpServer {
             bail!("Error: unknown RPC method {method}");
         }
 
-        let name = params
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
 
         let args = params
             .get("arguments")
@@ -532,34 +531,34 @@ impl MCPServer for CreativeWriterMcpServer {
             "list_chapters" => self.list_chapters(),
             "get_story_outline" => self.get_story_outline(),
             "get_story_statistics" => self.get_story_statistics(),
-            
+
             // Character Development
             "create_character" => self.create_character(args),
             "update_character" => self.update_character(args),
             "add_character_relationship" => self.add_character_relationship(args),
             "get_character_details" => self.get_character_details(args),
             "list_characters" => self.list_characters(),
-            
+
             // World-building
             "create_world_element" => self.create_world_element(args),
             "get_world_element" => self.get_world_element(args),
             "list_world_elements" => self.list_world_elements(args),
-            
+
             // Plot & Narrative
             "add_plot_point" => self.add_plot_point(args),
             "analyze_story_structure" => self.analyze_story_structure(),
-            
+
             // Writing Enhancement
             "analyze_chapter_content" => self.analyze_chapter_content(args),
             "suggest_character_development" => self.suggest_character_development(args),
-            
+
             // Notes & Organization
             "add_story_note" => self.add_story_note(args),
             "get_story_notes" => self.get_story_notes(),
-            
+
             // Export & Formatting
             "export_story" => self.export_story(args),
-            
+
             _ => ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".to_string(),
@@ -567,7 +566,7 @@ impl MCPServer for CreativeWriterMcpServer {
                     ..Default::default()
                 }],
                 is_error: Some(true),
-            }
+            },
         };
 
         Ok(serde_json::to_value(result)?)
@@ -584,7 +583,8 @@ impl CreativeWriterMcpServer {
             self.story.metadata.genre = genre.to_string();
         }
         if let Some(themes) = args.get("themes").and_then(|v| v.as_array()) {
-            self.story.metadata.themes = themes.iter()
+            self.story.metadata.themes = themes
+                .iter()
                 .filter_map(|v| v.as_str())
                 .map(|s| s.to_string())
                 .collect();
@@ -607,17 +607,38 @@ impl CreativeWriterMcpServer {
     }
 
     fn create_chapter(&mut self, args: Value) -> ToolResult {
-        let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("Untitled Chapter").to_string();
-        let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let summary = args.get("summary").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let plot_points = args.get("plot_points")
+        let title = args
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Untitled Chapter")
+            .to_string();
+        let content = args
+            .get("content")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let summary = args
+            .get("summary")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let plot_points = args
+            .get("plot_points")
             .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()
+            })
             .unwrap_or_else(Vec::new);
-        let position = args.get("position").and_then(|v| v.as_u64()).map(|v| v as usize);
+        let position = args
+            .get("position")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize);
 
         let word_count = content.split_whitespace().count();
-        
+
         let chapter = Chapter {
             title: title.clone(),
             content,
@@ -640,7 +661,10 @@ impl CreativeWriterMcpServer {
         ToolResult {
             content: vec![ToolResultContent {
                 r#type: "text".to_string(),
-                text: Some(format!("Chapter '{}' created successfully with {} words at position {}.", title, word_count, final_position)),
+                text: Some(format!(
+                    "Chapter '{}' created successfully with {} words at position {}.",
+                    title, word_count, final_position
+                )),
                 ..Default::default()
             }],
             is_error: Some(false),
@@ -648,7 +672,8 @@ impl CreativeWriterMcpServer {
     }
 
     fn update_chapter(&mut self, args: Value) -> ToolResult {
-        let chapter_index = args.get("chapter_index")
+        let chapter_index = args
+            .get("chapter_index")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as usize;
 
@@ -656,8 +681,11 @@ impl CreativeWriterMcpServer {
             return ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".to_string(),
-                    text: Some(format!("Chapter index {} is out of range. Story has {} chapters.", 
-                        chapter_index, self.story.chapters.len())),
+                    text: Some(format!(
+                        "Chapter index {} is out of range. Story has {} chapters.",
+                        chapter_index,
+                        self.story.chapters.len()
+                    )),
                     ..Default::default()
                 }],
                 is_error: Some(true),
@@ -684,7 +712,8 @@ impl CreativeWriterMcpServer {
         }
 
         if let Some(plot_points) = args.get("plot_points").and_then(|v| v.as_array()) {
-            chapter.plot_points = plot_points.iter()
+            chapter.plot_points = plot_points
+                .iter()
                 .filter_map(|v| v.as_str())
                 .map(|s| s.to_string())
                 .collect();
@@ -705,8 +734,12 @@ impl CreativeWriterMcpServer {
         ToolResult {
             content: vec![ToolResultContent {
                 r#type: "text".to_string(),
-                text: Some(format!("Chapter {} '{}' updated successfully. Updated fields: {}", 
-                    chapter_index, chapter.title, updated_fields.join(", "))),
+                text: Some(format!(
+                    "Chapter {} '{}' updated successfully. Updated fields: {}",
+                    chapter_index,
+                    chapter.title,
+                    updated_fields.join(", ")
+                )),
                 ..Default::default()
             }],
             is_error: Some(false),
@@ -714,7 +747,8 @@ impl CreativeWriterMcpServer {
     }
 
     fn append_to_chapter(&mut self, args: Value) -> ToolResult {
-        let chapter_index = args.get("chapter_index")
+        let chapter_index = args
+            .get("chapter_index")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as usize;
 
@@ -722,8 +756,11 @@ impl CreativeWriterMcpServer {
             return ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".to_string(),
-                    text: Some(format!("Chapter index {} is out of range. Story has {} chapters.", 
-                        chapter_index, self.story.chapters.len())),
+                    text: Some(format!(
+                        "Chapter index {} is out of range. Story has {} chapters.",
+                        chapter_index,
+                        self.story.chapters.len()
+                    )),
                     ..Default::default()
                 }],
                 is_error: Some(true),
@@ -731,7 +768,7 @@ impl CreativeWriterMcpServer {
         }
 
         let content_to_append = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
-        
+
         if content_to_append.is_empty() {
             return ToolResult {
                 content: vec![ToolResultContent {
@@ -743,17 +780,20 @@ impl CreativeWriterMcpServer {
             };
         }
 
-        let separator = args.get("separator").and_then(|v| v.as_str()).unwrap_or("\n\n");
-        
+        let separator = args
+            .get("separator")
+            .and_then(|v| v.as_str())
+            .unwrap_or("\n\n");
+
         let chapter = &mut self.story.chapters[chapter_index];
         let original_word_count = chapter.word_count;
-        
+
         // Append the content with separator
         if !chapter.content.is_empty() {
             chapter.content.push_str(separator);
         }
         chapter.content.push_str(content_to_append);
-        
+
         // Recalculate word count
         chapter.word_count = chapter.content.split_whitespace().count();
         let words_added = chapter.word_count - original_word_count;
@@ -761,8 +801,10 @@ impl CreativeWriterMcpServer {
         ToolResult {
             content: vec![ToolResultContent {
                 r#type: "text".to_string(),
-                text: Some(format!("Successfully appended {} words to chapter {} '{}'. Total word count is now {}.", 
-                    words_added, chapter_index, chapter.title, chapter.word_count)),
+                text: Some(format!(
+                    "Successfully appended {} words to chapter {} '{}'. Total word count is now {}.",
+                    words_added, chapter_index, chapter.title, chapter.word_count
+                )),
                 ..Default::default()
             }],
             is_error: Some(false),
@@ -770,7 +812,8 @@ impl CreativeWriterMcpServer {
     }
 
     fn delete_chapter(&mut self, args: Value) -> ToolResult {
-        let chapter_index = args.get("chapter_index")
+        let chapter_index = args
+            .get("chapter_index")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as usize;
 
@@ -778,8 +821,11 @@ impl CreativeWriterMcpServer {
             return ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".to_string(),
-                    text: Some(format!("Chapter index {} is out of range. Story has {} chapters.", 
-                        chapter_index, self.story.chapters.len())),
+                    text: Some(format!(
+                        "Chapter index {} is out of range. Story has {} chapters.",
+                        chapter_index,
+                        self.story.chapters.len()
+                    )),
                     ..Default::default()
                 }],
                 is_error: Some(true),
@@ -791,7 +837,10 @@ impl CreativeWriterMcpServer {
         ToolResult {
             content: vec![ToolResultContent {
                 r#type: "text".to_string(),
-                text: Some(format!("Chapter {} '{}' deleted successfully.", chapter_index, removed_chapter.title)),
+                text: Some(format!(
+                    "Chapter {} '{}' deleted successfully.",
+                    chapter_index, removed_chapter.title
+                )),
                 ..Default::default()
             }],
             is_error: Some(false),
@@ -799,19 +848,18 @@ impl CreativeWriterMcpServer {
     }
 
     fn move_chapter(&mut self, args: Value) -> ToolResult {
-        let from_index = args.get("from_index")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as usize;
-        let to_index = args.get("to_index")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as usize;
+        let from_index = args.get("from_index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+        let to_index = args.get("to_index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
 
         if from_index >= self.story.chapters.len() {
             return ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".to_string(),
-                    text: Some(format!("Source chapter index {} is out of range. Story has {} chapters.", 
-                        from_index, self.story.chapters.len())),
+                    text: Some(format!(
+                        "Source chapter index {} is out of range. Story has {} chapters.",
+                        from_index,
+                        self.story.chapters.len()
+                    )),
                     ..Default::default()
                 }],
                 is_error: Some(true),
@@ -822,8 +870,11 @@ impl CreativeWriterMcpServer {
             return ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".to_string(),
-                    text: Some(format!("Target chapter index {} is out of range. Story has {} chapters.", 
-                        to_index, self.story.chapters.len())),
+                    text: Some(format!(
+                        "Target chapter index {} is out of range. Story has {} chapters.",
+                        to_index,
+                        self.story.chapters.len()
+                    )),
                     ..Default::default()
                 }],
                 is_error: Some(true),
@@ -834,7 +885,9 @@ impl CreativeWriterMcpServer {
             return ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".to_string(),
-                    text: Some("Source and target indices are the same. No move needed.".to_string()),
+                    text: Some(
+                        "Source and target indices are the same. No move needed.".to_string(),
+                    ),
                     ..Default::default()
                 }],
                 is_error: Some(false),
@@ -848,8 +901,10 @@ impl CreativeWriterMcpServer {
         ToolResult {
             content: vec![ToolResultContent {
                 r#type: "text".to_string(),
-                text: Some(format!("Chapter '{}' moved from position {} to position {}.", 
-                    chapter_title, from_index, to_index)),
+                text: Some(format!(
+                    "Chapter '{}' moved from position {} to position {}.",
+                    chapter_title, from_index, to_index
+                )),
                 ..Default::default()
             }],
             is_error: Some(false),
@@ -857,7 +912,8 @@ impl CreativeWriterMcpServer {
     }
 
     fn get_chapter(&self, args: Value) -> ToolResult {
-        let chapter_index = args.get("chapter_index")
+        let chapter_index = args
+            .get("chapter_index")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as usize;
 
@@ -865,8 +921,11 @@ impl CreativeWriterMcpServer {
             return ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".to_string(),
-                    text: Some(format!("Chapter index {} is out of range. Story has {} chapters.", 
-                        chapter_index, self.story.chapters.len())),
+                    text: Some(format!(
+                        "Chapter index {} is out of range. Story has {} chapters.",
+                        chapter_index,
+                        self.story.chapters.len()
+                    )),
                     ..Default::default()
                 }],
                 is_error: Some(true),
@@ -875,10 +934,12 @@ impl CreativeWriterMcpServer {
 
         let chapter = &self.story.chapters[chapter_index];
         let mut details = format!("# Chapter {}: {}\n\n", chapter_index + 1, chapter.title);
-        
+
         details.push_str(&format!("**Word Count:** {}\n", chapter.word_count));
-        details.push_str(&format!("**Estimated Reading Time:** {} minutes\n\n", 
-            (chapter.word_count as f64 / 250.0).ceil() as usize));
+        details.push_str(&format!(
+            "**Estimated Reading Time:** {} minutes\n\n",
+            (chapter.word_count as f64 / 250.0).ceil() as usize
+        ));
 
         if !chapter.summary.is_empty() {
             details.push_str(&format!("**Summary:** {}\n\n", chapter.summary));
@@ -919,8 +980,13 @@ impl CreativeWriterMcpServer {
 
         let mut list = "# Chapters\n\n".to_string();
         for (i, chapter) in self.story.chapters.iter().enumerate() {
-            list.push_str(&format!("## {}. {} ({} words)\n\n", i + 1, chapter.title, chapter.word_count));
-            
+            list.push_str(&format!(
+                "## {}. {} ({} words)\n\n",
+                i + 1,
+                chapter.title,
+                chapter.word_count
+            ));
+
             if !chapter.summary.is_empty() {
                 list.push_str(&format!("**Summary:** {}\n\n", chapter.summary));
             }
@@ -945,21 +1011,38 @@ impl CreativeWriterMcpServer {
     fn get_story_outline(&self) -> ToolResult {
         let mut outline = format!("# Story Outline: {}\n\n", self.story.metadata.title);
         outline.push_str(&format!("**Genre:** {}\n", self.story.metadata.genre));
-        outline.push_str(&format!("**Themes:** {}\n", self.story.metadata.themes.join(", ")));
-        outline.push_str(&format!("**Target Audience:** {}\n\n", self.story.metadata.target_audience));
-        
+        outline.push_str(&format!(
+            "**Themes:** {}\n",
+            self.story.metadata.themes.join(", ")
+        ));
+        outline.push_str(&format!(
+            "**Target Audience:** {}\n\n",
+            self.story.metadata.target_audience
+        ));
+
         if !self.story.metadata.synopsis.is_empty() {
-            outline.push_str(&format!("**Synopsis:** {}\n\n", self.story.metadata.synopsis));
+            outline.push_str(&format!(
+                "**Synopsis:** {}\n\n",
+                self.story.metadata.synopsis
+            ));
         }
 
         outline.push_str("## Chapters:\n\n");
         for (i, chapter) in self.story.chapters.iter().enumerate() {
-            outline.push_str(&format!("{}. **{}** ({} words)\n", i + 1, chapter.title, chapter.word_count));
+            outline.push_str(&format!(
+                "{}. **{}** ({} words)\n",
+                i + 1,
+                chapter.title,
+                chapter.word_count
+            ));
             if !chapter.summary.is_empty() {
                 outline.push_str(&format!("   Summary: {}\n", chapter.summary));
             }
             if !chapter.plot_points.is_empty() {
-                outline.push_str(&format!("   Plot Points: {}\n", chapter.plot_points.join(", ")));
+                outline.push_str(&format!(
+                    "   Plot Points: {}\n",
+                    chapter.plot_points.join(", ")
+                ));
             }
             outline.push('\n');
         }
@@ -977,7 +1060,7 @@ impl CreativeWriterMcpServer {
     fn get_story_statistics(&self) -> ToolResult {
         let total_words: usize = self.story.chapters.iter().map(|c| c.word_count).sum();
         let reading_time = (total_words as f64 / 250.0).ceil() as usize; // Assuming 250 words per minute
-        
+
         let stats = format!(
             "# Story Statistics\n\n\
             **Total Word Count:** {}\n\
@@ -1008,7 +1091,11 @@ impl CreativeWriterMcpServer {
 
     // Character Development Methods
     fn create_character(&mut self, args: Value) -> ToolResult {
-        let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let name = args
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         if name.is_empty() {
             return ToolResult {
                 content: vec![ToolResultContent {
@@ -1022,13 +1109,31 @@ impl CreativeWriterMcpServer {
 
         let character = Character {
             name: name.clone(),
-            description: args.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            traits: args.get("traits")
+            description: args
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            traits: args
+                .get("traits")
                 .and_then(|v| v.as_array())
-                .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .collect()
+                })
                 .unwrap_or_else(Vec::new),
-            backstory: args.get("backstory").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            goals: args.get("goals").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            backstory: args
+                .get("backstory")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            goals: args
+                .get("goals")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             relationships: HashMap::new(),
         };
 
@@ -1046,13 +1151,14 @@ impl CreativeWriterMcpServer {
 
     fn update_character(&mut self, args: Value) -> ToolResult {
         let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
-        
+
         if let Some(character) = self.story.characters.get_mut(name) {
             if let Some(description) = args.get("description").and_then(|v| v.as_str()) {
                 character.description = description.to_string();
             }
             if let Some(traits) = args.get("traits").and_then(|v| v.as_array()) {
-                character.traits = traits.iter()
+                character.traits = traits
+                    .iter()
                     .filter_map(|v| v.as_str())
                     .map(|s| s.to_string())
                     .collect();
@@ -1085,21 +1191,37 @@ impl CreativeWriterMcpServer {
     }
 
     fn add_character_relationship(&mut self, args: Value) -> ToolResult {
-        let char1 = args.get("character1").and_then(|v| v.as_str()).unwrap_or("");
-        let char2 = args.get("character2").and_then(|v| v.as_str()).unwrap_or("");
-        let relationship = args.get("relationship").and_then(|v| v.as_str()).unwrap_or("");
+        let char1 = args
+            .get("character1")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let char2 = args
+            .get("character2")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let relationship = args
+            .get("relationship")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
 
         if let Some(character1) = self.story.characters.get_mut(char1) {
-            character1.relationships.insert(char2.to_string(), relationship.to_string());
+            character1
+                .relationships
+                .insert(char2.to_string(), relationship.to_string());
         }
         if let Some(character2) = self.story.characters.get_mut(char2) {
-            character2.relationships.insert(char1.to_string(), relationship.to_string());
+            character2
+                .relationships
+                .insert(char1.to_string(), relationship.to_string());
         }
 
         ToolResult {
             content: vec![ToolResultContent {
                 r#type: "text".to_string(),
-                text: Some(format!("Relationship between '{}' and '{}' added: {}", char1, char2, relationship)),
+                text: Some(format!(
+                    "Relationship between '{}' and '{}' added: {}",
+                    char1, char2, relationship
+                )),
                 ..Default::default()
             }],
             is_error: Some(false),
@@ -1108,23 +1230,23 @@ impl CreativeWriterMcpServer {
 
     fn get_character_details(&self, args: Value) -> ToolResult {
         let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
-        
+
         if let Some(character) = self.story.characters.get(name) {
             let mut details = format!("# Character: {}\n\n", character.name);
             details.push_str(&format!("**Description:** {}\n\n", character.description));
-            
+
             if !character.traits.is_empty() {
                 details.push_str(&format!("**Traits:** {}\n\n", character.traits.join(", ")));
             }
-            
+
             if !character.backstory.is_empty() {
                 details.push_str(&format!("**Backstory:** {}\n\n", character.backstory));
             }
-            
+
             if !character.goals.is_empty() {
                 details.push_str(&format!("**Goals:** {}\n\n", character.goals));
             }
-            
+
             if !character.relationships.is_empty() {
                 details.push_str("**Relationships:**\n");
                 for (other_char, relationship) in &character.relationships {
@@ -1186,10 +1308,22 @@ impl CreativeWriterMcpServer {
 
     // World-building Methods
     fn create_world_element(&mut self, args: Value) -> ToolResult {
-        let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let element_type = args.get("element_type").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let description = args.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        
+        let name = args
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let element_type = args
+            .get("element_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let description = args
+            .get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
         if name.is_empty() || element_type.is_empty() {
             return ToolResult {
                 content: vec![ToolResultContent {
@@ -1201,9 +1335,14 @@ impl CreativeWriterMcpServer {
             };
         }
 
-        let properties = args.get("properties")
+        let properties = args
+            .get("properties")
             .and_then(|v| v.as_object())
-            .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string())).collect())
+            .map(|obj| {
+                obj.iter()
+                    .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
+                    .collect()
+            })
             .unwrap_or_else(HashMap::new);
 
         let element = WorldElement {
@@ -1218,7 +1357,10 @@ impl CreativeWriterMcpServer {
         ToolResult {
             content: vec![ToolResultContent {
                 r#type: "text".to_string(),
-                text: Some(format!("World element '{}' ({}) created successfully.", name, element_type)),
+                text: Some(format!(
+                    "World element '{}' ({}) created successfully.",
+                    name, element_type
+                )),
                 ..Default::default()
             }],
             is_error: Some(false),
@@ -1227,12 +1369,12 @@ impl CreativeWriterMcpServer {
 
     fn get_world_element(&self, args: Value) -> ToolResult {
         let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
-        
+
         if let Some(element) = self.story.world_elements.get(name) {
             let mut details = format!("# World Element: {}\n\n", element.name);
             details.push_str(&format!("**Type:** {}\n\n", element.element_type));
             details.push_str(&format!("**Description:** {}\n\n", element.description));
-            
+
             if !element.properties.is_empty() {
                 details.push_str("**Properties:**\n");
                 for (key, value) in &element.properties {
@@ -1262,9 +1404,11 @@ impl CreativeWriterMcpServer {
 
     fn list_world_elements(&self, args: Value) -> ToolResult {
         let filter_type = args.get("element_type").and_then(|v| v.as_str());
-        
+
         let filtered_elements: Vec<_> = if let Some(filter) = filter_type {
-            self.story.world_elements.iter()
+            self.story
+                .world_elements
+                .iter()
                 .filter(|(_, element)| element.element_type == filter)
                 .collect()
         } else {
@@ -1273,11 +1417,14 @@ impl CreativeWriterMcpServer {
 
         if filtered_elements.is_empty() {
             let message = if filter_type.is_some() {
-                format!("No world elements of type '{}' found.", filter_type.unwrap())
+                format!(
+                    "No world elements of type '{}' found.",
+                    filter_type.unwrap()
+                )
             } else {
                 "No world elements created yet.".to_string()
             };
-            
+
             return ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".to_string(),
@@ -1306,8 +1453,12 @@ impl CreativeWriterMcpServer {
 
     // Plot & Narrative Methods
     fn add_plot_point(&mut self, args: Value) -> ToolResult {
-        let plot_point = args.get("plot_point").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        
+        let plot_point = args
+            .get("plot_point")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
         if plot_point.is_empty() {
             return ToolResult {
                 content: vec![ToolResultContent {
@@ -1333,21 +1484,30 @@ impl CreativeWriterMcpServer {
 
     fn analyze_story_structure(&self) -> ToolResult {
         let mut analysis = "# Story Structure Analysis\n\n".to_string();
-        
+
         // Basic structure analysis
         let chapter_count = self.story.chapters.len();
         let total_words: usize = self.story.chapters.iter().map(|c| c.word_count).sum();
-        
+
         analysis.push_str(&format!("**Structure Overview:**\n"));
         analysis.push_str(&format!("- Chapters: {}\n", chapter_count));
         analysis.push_str(&format!("- Total Words: {}\n", total_words));
-        analysis.push_str(&format!("- Average Chapter Length: {} words\n\n", 
-            if chapter_count > 0 { total_words / chapter_count } else { 0 }));
+        analysis.push_str(&format!(
+            "- Average Chapter Length: {} words\n\n",
+            if chapter_count > 0 {
+                total_words / chapter_count
+            } else {
+                0
+            }
+        ));
 
         // Plot point analysis
         analysis.push_str(&format!("**Plot Development:**\n"));
-        analysis.push_str(&format!("- Major Plot Points: {}\n", self.story.plot_points.len()));
-        
+        analysis.push_str(&format!(
+            "- Major Plot Points: {}\n",
+            self.story.plot_points.len()
+        ));
+
         if !self.story.plot_points.is_empty() {
             analysis.push_str("- Plot Points:\n");
             for (i, point) in self.story.plot_points.iter().enumerate() {
@@ -1358,22 +1518,47 @@ impl CreativeWriterMcpServer {
 
         // Character analysis
         analysis.push_str(&format!("**Character Development:**\n"));
-        analysis.push_str(&format!("- Total Characters: {}\n", self.story.characters.len()));
-        
-        let characters_with_goals = self.story.characters.values().filter(|c| !c.goals.is_empty()).count();
-        let characters_with_backstory = self.story.characters.values().filter(|c| !c.backstory.is_empty()).count();
-        
-        analysis.push_str(&format!("- Characters with defined goals: {}\n", characters_with_goals));
-        analysis.push_str(&format!("- Characters with backstory: {}\n\n", characters_with_backstory));
+        analysis.push_str(&format!(
+            "- Total Characters: {}\n",
+            self.story.characters.len()
+        ));
+
+        let characters_with_goals = self
+            .story
+            .characters
+            .values()
+            .filter(|c| !c.goals.is_empty())
+            .count();
+        let characters_with_backstory = self
+            .story
+            .characters
+            .values()
+            .filter(|c| !c.backstory.is_empty())
+            .count();
+
+        analysis.push_str(&format!(
+            "- Characters with defined goals: {}\n",
+            characters_with_goals
+        ));
+        analysis.push_str(&format!(
+            "- Characters with backstory: {}\n\n",
+            characters_with_backstory
+        ));
 
         // World-building analysis
         analysis.push_str(&format!("**World-building:**\n"));
-        analysis.push_str(&format!("- World Elements: {}\n", self.story.world_elements.len()));
-        
-        let element_types: std::collections::HashSet<_> = self.story.world_elements.values()
+        analysis.push_str(&format!(
+            "- World Elements: {}\n",
+            self.story.world_elements.len()
+        ));
+
+        let element_types: std::collections::HashSet<_> = self
+            .story
+            .world_elements
+            .values()
             .map(|e| &e.element_type)
             .collect();
-        
+
         if !element_types.is_empty() {
             let types: Vec<String> = element_types.iter().map(|s| s.to_string()).collect();
             analysis.push_str(&format!("- Element Types: {}\n", types.join(", ")));
@@ -1391,7 +1576,8 @@ impl CreativeWriterMcpServer {
 
     // Writing Enhancement Methods
     fn analyze_chapter_content(&self, args: Value) -> ToolResult {
-        let chapter_index = args.get("chapter_index")
+        let chapter_index = args
+            .get("chapter_index")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as usize;
 
@@ -1399,8 +1585,11 @@ impl CreativeWriterMcpServer {
             return ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".to_string(),
-                    text: Some(format!("Chapter index {} is out of range. Story has {} chapters.", 
-                        chapter_index, self.story.chapters.len())),
+                    text: Some(format!(
+                        "Chapter index {} is out of range. Story has {} chapters.",
+                        chapter_index,
+                        self.story.chapters.len()
+                    )),
                     ..Default::default()
                 }],
                 is_error: Some(true),
@@ -1409,21 +1598,33 @@ impl CreativeWriterMcpServer {
 
         let chapter = &self.story.chapters[chapter_index];
         let mut analysis = format!("# Chapter Analysis: {}\n\n", chapter.title);
-        
+
         // Basic metrics
         analysis.push_str(&format!("**Basic Metrics:**\n"));
         analysis.push_str(&format!("- Word Count: {}\n", chapter.word_count));
-        analysis.push_str(&format!("- Estimated Reading Time: {} minutes\n", 
-            (chapter.word_count as f64 / 250.0).ceil() as usize));
-        
+        analysis.push_str(&format!(
+            "- Estimated Reading Time: {} minutes\n",
+            (chapter.word_count as f64 / 250.0).ceil() as usize
+        ));
+
         // Content analysis
         let sentences = chapter.content.split('.').count();
-        let paragraphs = chapter.content.split('\n').filter(|p| !p.trim().is_empty()).count();
-        
+        let paragraphs = chapter
+            .content
+            .split('\n')
+            .filter(|p| !p.trim().is_empty())
+            .count();
+
         analysis.push_str(&format!("- Sentences: ~{}\n", sentences));
         analysis.push_str(&format!("- Paragraphs: {}\n", paragraphs));
-        analysis.push_str(&format!("- Average Words per Paragraph: {}\n\n", 
-            if paragraphs > 0 { chapter.word_count / paragraphs } else { 0 }));
+        analysis.push_str(&format!(
+            "- Average Words per Paragraph: {}\n\n",
+            if paragraphs > 0 {
+                chapter.word_count / paragraphs
+            } else {
+                0
+            }
+        ));
 
         // Plot points
         if !chapter.plot_points.is_empty() {
@@ -1451,25 +1652,25 @@ impl CreativeWriterMcpServer {
 
     fn suggest_character_development(&self, args: Value) -> ToolResult {
         let character_name = args.get("character_name").and_then(|v| v.as_str());
-        
+
         let mut suggestions = "# Character Development Suggestions\n\n".to_string();
 
         if let Some(name) = character_name {
             if let Some(character) = self.story.characters.get(name) {
                 suggestions.push_str(&format!("## Suggestions for {}\n\n", name));
-                
+
                 if character.goals.is_empty() {
                     suggestions.push_str("- **Define Goals:** Consider adding specific goals and motivations for this character.\n");
                 }
-                
+
                 if character.backstory.is_empty() {
                     suggestions.push_str("- **Develop Backstory:** Add background information that explains their current situation and personality.\n");
                 }
-                
+
                 if character.traits.is_empty() {
                     suggestions.push_str("- **Add Traits:** Define personality traits that make this character unique.\n");
                 }
-                
+
                 if character.relationships.is_empty() {
                     suggestions.push_str("- **Build Relationships:** Establish connections with other characters in the story.\n");
                 }
@@ -1486,30 +1687,44 @@ impl CreativeWriterMcpServer {
         } else {
             // General suggestions for all characters
             suggestions.push_str("## General Character Development Opportunities\n\n");
-            
-            let incomplete_characters: Vec<_> = self.story.characters.iter()
-                .filter(|(_, c)| c.goals.is_empty() || c.backstory.is_empty() || c.traits.is_empty())
+
+            let incomplete_characters: Vec<_> = self
+                .story
+                .characters
+                .iter()
+                .filter(|(_, c)| {
+                    c.goals.is_empty() || c.backstory.is_empty() || c.traits.is_empty()
+                })
                 .collect();
-            
+
             if !incomplete_characters.is_empty() {
                 suggestions.push_str("**Characters needing development:**\n");
                 for (name, character) in incomplete_characters {
                     suggestions.push_str(&format!("- **{}:** ", name));
                     let mut needs = vec![];
-                    if character.goals.is_empty() { needs.push("goals"); }
-                    if character.backstory.is_empty() { needs.push("backstory"); }
-                    if character.traits.is_empty() { needs.push("traits"); }
+                    if character.goals.is_empty() {
+                        needs.push("goals");
+                    }
+                    if character.backstory.is_empty() {
+                        needs.push("backstory");
+                    }
+                    if character.traits.is_empty() {
+                        needs.push("traits");
+                    }
                     suggestions.push_str(&format!("{}\n", needs.join(", ")));
                 }
                 suggestions.push('\n');
             }
-            
+
             // Relationship suggestions
-            let characters_without_relationships: Vec<_> = self.story.characters.iter()
+            let characters_without_relationships: Vec<_> = self
+                .story
+                .characters
+                .iter()
                 .filter(|(_, c)| c.relationships.is_empty())
                 .map(|(name, _)| name)
                 .collect();
-            
+
             if !characters_without_relationships.is_empty() {
                 suggestions.push_str("**Characters without relationships:**\n");
                 for name in characters_without_relationships {
@@ -1530,8 +1745,12 @@ impl CreativeWriterMcpServer {
 
     // Notes & Organization Methods
     fn add_story_note(&mut self, args: Value) -> ToolResult {
-        let note = args.get("note").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        
+        let note = args
+            .get("note")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
         if note.is_empty() {
             return ToolResult {
                 content: vec![ToolResultContent {
@@ -1584,8 +1803,11 @@ impl CreativeWriterMcpServer {
 
     // Export & Formatting Methods
     fn export_story(&self, args: Value) -> ToolResult {
-        let format = args.get("format").and_then(|v| v.as_str()).unwrap_or("markdown");
-        
+        let format = args
+            .get("format")
+            .and_then(|v| v.as_str())
+            .unwrap_or("markdown");
+
         match format {
             "markdown" => self.export_markdown(),
             "plain_text" => self.export_plain_text(),
@@ -1593,26 +1815,38 @@ impl CreativeWriterMcpServer {
             _ => ToolResult {
                 content: vec![ToolResultContent {
                     r#type: "text".to_string(),
-                    text: Some("Invalid format. Use 'markdown', 'plain_text', or 'structured'.".to_string()),
+                    text: Some(
+                        "Invalid format. Use 'markdown', 'plain_text', or 'structured'."
+                            .to_string(),
+                    ),
                     ..Default::default()
                 }],
                 is_error: Some(true),
-            }
+            },
         }
     }
 
     fn export_markdown(&self) -> ToolResult {
         let mut export = format!("# {}\n\n", self.story.metadata.title);
         export.push_str(&format!("**Genre:** {}\n", self.story.metadata.genre));
-        export.push_str(&format!("**Target Audience:** {}\n", self.story.metadata.target_audience));
-        
+        export.push_str(&format!(
+            "**Target Audience:** {}\n",
+            self.story.metadata.target_audience
+        ));
+
         if !self.story.metadata.themes.is_empty() {
-            export.push_str(&format!("**Themes:** {}\n", self.story.metadata.themes.join(", ")));
+            export.push_str(&format!(
+                "**Themes:** {}\n",
+                self.story.metadata.themes.join(", ")
+            ));
         }
         export.push('\n');
-        
+
         if !self.story.metadata.synopsis.is_empty() {
-            export.push_str(&format!("## Synopsis\n\n{}\n\n", self.story.metadata.synopsis));
+            export.push_str(&format!(
+                "## Synopsis\n\n{}\n\n",
+                self.story.metadata.synopsis
+            ));
         }
 
         // Export plot points
@@ -1630,19 +1864,19 @@ impl CreativeWriterMcpServer {
             for (name, character) in &self.story.characters {
                 export.push_str(&format!("### {}\n\n", name));
                 export.push_str(&format!("**Description:** {}\n\n", character.description));
-                
+
                 if !character.traits.is_empty() {
                     export.push_str(&format!("**Traits:** {}\n\n", character.traits.join(", ")));
                 }
-                
+
                 if !character.backstory.is_empty() {
                     export.push_str(&format!("**Backstory:** {}\n\n", character.backstory));
                 }
-                
+
                 if !character.goals.is_empty() {
                     export.push_str(&format!("**Goals:** {}\n\n", character.goals));
                 }
-                
+
                 if !character.relationships.is_empty() {
                     export.push_str("**Relationships:**\n");
                     for (other_char, relationship) in &character.relationships {
@@ -1659,7 +1893,7 @@ impl CreativeWriterMcpServer {
             for (name, element) in &self.story.world_elements {
                 export.push_str(&format!("### {} ({})\n\n", name, element.element_type));
                 export.push_str(&format!("**Description:** {}\n\n", element.description));
-                
+
                 if !element.properties.is_empty() {
                     export.push_str("**Properties:**\n");
                     for (key, value) in &element.properties {
@@ -1675,11 +1909,11 @@ impl CreativeWriterMcpServer {
             export.push_str("## Chapters\n\n");
             for (i, chapter) in self.story.chapters.iter().enumerate() {
                 export.push_str(&format!("### Chapter {}: {}\n\n", i + 1, chapter.title));
-                
+
                 if !chapter.summary.is_empty() {
                     export.push_str(&format!("**Summary:** {}\n\n", chapter.summary));
                 }
-                
+
                 if !chapter.plot_points.is_empty() {
                     export.push_str("**Plot Points:**\n");
                     for point in &chapter.plot_points {
@@ -1687,7 +1921,7 @@ impl CreativeWriterMcpServer {
                     }
                     export.push('\n');
                 }
-                
+
                 export.push_str(&format!("**Word Count:** {}\n\n", chapter.word_count));
                 export.push_str(&format!("{}\n\n", chapter.content));
             }
@@ -1714,7 +1948,7 @@ impl CreativeWriterMcpServer {
 
     fn export_plain_text(&self) -> ToolResult {
         let mut export = format!("{}\n\n", self.story.metadata.title);
-        
+
         for (i, chapter) in self.story.chapters.iter().enumerate() {
             export.push_str(&format!("Chapter {}: {}\n\n", i + 1, chapter.title));
             export.push_str(&format!("{}\n\n", chapter.content));
@@ -1734,7 +1968,10 @@ impl CreativeWriterMcpServer {
         ToolResult {
             content: vec![ToolResultContent {
                 r#type: "text".to_string(),
-                text: Some(serde_json::to_string_pretty(&self.story).unwrap_or_else(|_| "Export failed".to_string())),
+                text: Some(
+                    serde_json::to_string_pretty(&self.story)
+                        .unwrap_or_else(|_| "Export failed".to_string()),
+                ),
                 ..Default::default()
             }],
             is_error: Some(false),

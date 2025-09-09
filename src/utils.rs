@@ -1,5 +1,5 @@
 //! Utility functions for handling tool calls and message conversion.
-//! 
+//!
 //! This module provides helper functions for converting between MCP tool descriptors
 //! and LLM tool objects, as well as executing tool calls and formatting their results
 //! for inclusion in chat conversations.
@@ -8,29 +8,29 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
+use crate::app_settings::Chat;
 use crate::llm::Function;
 use crate::llm::Message;
 use crate::llm::Tool;
 use crate::llm::ToolCallDelta;
-use crate::mcp::host::MCPHost;
-use crate::mcp::ToolDescriptor;
-use crate::app_settings::Chat;
-use crate::storage::{get_storage, Storage};
-use crate::toolset::Toolset;
 use crate::llm::{FunctionDelta, LlmClient};
+use crate::mcp::ToolDescriptor;
+use crate::mcp::host::MCPHost;
+use crate::storage::{Storage, get_storage};
+use crate::toolset::Toolset;
 use dioxus::logger::tracing::{info, warn};
 use dioxus::prelude::*;
 use dioxus_router::Navigator;
 
 /// Converts MCP tool descriptors to LLM tool objects.
-/// 
+///
 /// This function transforms tool descriptors from MCP servers into the format
 /// expected by LLM APIs. Each tool is prefixed with its server ID to ensure
 /// unique naming and proper routing when the tool is called.
-/// 
+///
 /// # Arguments
 /// * `tools` - Vector of tool descriptors from MCP servers
-/// 
+///
 /// # Returns
 /// Vector of `Tool` objects formatted for LLM API requests
 pub fn tools_to_message_objects(tools: Vec<ToolDescriptor>) -> Vec<Tool> {
@@ -53,15 +53,15 @@ pub fn tools_to_message_objects(tools: Vec<ToolDescriptor>) -> Vec<Tool> {
 }
 
 /// Executes tool calls and converts results to chat messages.
-/// 
+///
 /// This function processes tool call deltas from the LLM, extracts the server ID
 /// and tool name, executes the tools on the appropriate MCP servers, and formats
 /// the results as tool messages that can be added to the chat conversation.
-/// 
+///
 /// # Arguments
 /// * `tool_calls` - Vector of tool call deltas from the LLM response
 /// * `host` - MCP host for executing tool calls
-/// 
+///
 /// # Returns
 /// Vector of tool result messages to add to the conversation, or an error
 /// if any tool call fails
@@ -70,13 +70,13 @@ pub async fn call_tools(
     host: Arc<MCPHost>,
 ) -> anyhow::Result<Vec<Message>> {
     let mut new_chat: Vec<Message> = vec![];
-    
+
     // Process each tool call from the LLM
     for tc in tool_calls.into_iter() {
         let Some(f) = tc.function.as_ref() else {
             continue; // Skip tool calls without function information
         };
-        
+
         // Parse the tool name to extract server ID and tool name
         // Format is "server_id/tool_name"
         let parts: Vec<_> = f
@@ -90,7 +90,7 @@ pub async fn call_tools(
         if parts.len() == 2 {
             let server_id = parts[0];
             let tool_name = parts[1];
-            
+
             // Parse the function arguments from JSON string
             let params_str = f
                 .arguments
@@ -100,12 +100,10 @@ pub async fn call_tools(
             let arguments: Value = serde_json::from_str(params_str)?;
 
             // Log the tool call for debugging
-            warn!("Calling {server_id}/{tool_name}({arguments:?})");
-            
+            info!("Calling {server_id}/{tool_name}({arguments:?})");
+
             // Execute the tool call on the MCP server
-            let result = host.tool_call(server_id, tool_name, arguments).await;
-            warn!("{result:?}");
-            let result = result?;
+            let result = host.tool_call(server_id, tool_name, arguments).await?;
             // Convert tool result to text messages
             // Filter for text content and combine into a single message
             let messages: Vec<String> = result
@@ -115,35 +113,37 @@ pub async fn call_tools(
                 .map(|c| c.text.unwrap_or_else(|| "".to_string()))
                 .collect();
             let text = messages.join("\n");
-            
+
             // Create a tool message with the result
-            let tcm = Message::Tool { 
-                tool_call_id: tc.id.unwrap_or_else(|| "".into()), 
-                content: text 
+            let tcm = Message::Tool {
+                tool_call_id: tc.id.unwrap_or_else(|| "".into()),
+                content: text,
             };
             new_chat.push(tcm);
         }
     }
-    
+
     Ok(new_chat)
 }
 
 /// Extracts tool calls from text that uses non-standard formats.
-/// 
+///
 /// Some LLM models may return tool calls in custom formats rather than the
 /// standard streaming format. This function attempts to parse these alternative
 /// formats and convert them to standard ToolCallDelta objects.
-/// 
+///
 /// # Arguments
 /// * `text` - The text content to parse for tool calls
-/// 
+///
 /// # Returns
 /// An optional ToolCallDelta if a tool call was successfully extracted
 pub fn extract_wierd_tool_calls(text: &str) -> anyhow::Result<Option<ToolCallDelta>> {
     if text.starts_with("[TOOL_CALLS]") {
         let t = text.replace("[TOOL_CALLS]", "");
         let parts: Vec<String> = t.split("<SPECIAL_32>").map(|s| s.into()).collect();
-        if parts.len() < 2 { return Ok(None) }
+        if parts.len() < 2 {
+            return Ok(None);
+        }
         return Ok(Some(ToolCallDelta {
             id: Some("...".into()),
             kind: Some("function".into()),
@@ -182,17 +182,17 @@ pub fn extract_wierd_tool_calls(text: &str) -> anyhow::Result<Option<ToolCallDel
 }
 
 /// Saves a chat to storage and updates its state.
-/// 
+///
 /// This function persists the chat to storage, updates the toolset state,
 /// and handles navigation to the saved chat if it's a new chat.
-/// 
+///
 /// # Arguments
 /// * `chat` - Mutable signal containing the chat to save
 /// * `toolset` - Reference to the current toolset
 /// * `display` - Mutable signal for the markdown display
 /// * `id` - Signal containing the current chat ID
 /// * `nav` - Navigator for routing
-/// 
+///
 /// # Returns
 /// Result indicating success or failure of the save operation
 pub async fn save_chat_to_storage(
@@ -202,7 +202,6 @@ pub async fn save_chat_to_storage(
     id: Signal<Option<u32>>,
     nav: &Navigator,
 ) -> anyhow::Result<()> {
-    warn!("saving chat...");
     let storage = match get_storage().await {
         Ok(s) => Some(s),
         Err(e) => {
@@ -210,39 +209,33 @@ pub async fn save_chat_to_storage(
             None
         }
     };
-    warn!("1");
     let mut ch = chat.cloned();
     let value = toolset.get_state().await;
-    warn!("2");
     ch.value = value;
-    // let md = toolset.get_markdown_repr().await;
-    // display.with_mut(|d| *d = md);
-    warn!("3");
+    let md = toolset.get_markdown_repr().await;
+    display.with_mut(|d| *d = md);
     let Some(stg) = storage else { return Ok(()) };
-    warn!("4");
     let new_chat_id = stg.save_chat(&ch).await;
-    warn!("{new_chat_id:?}");
     let new_chat_id = new_chat_id?;
     ch.id = Some(new_chat_id);
-    
+
     if id() != Some(new_chat_id) {
         nav.push(crate::Route::ChatEl { id: new_chat_id });
     }
     chat.with_mut(|c| *c = ch);
-    warn!("saved!");
-    
+
     Ok(())
 }
 
 /// Main loop for handling LLM responses and tool execution.
-/// 
+///
 /// This function manages the conversation flow:
 /// 1. Sends the current conversation to the LLM
 /// 2. Processes streaming responses (text and tool calls)
 /// 3. Executes any requested tools
 /// 4. Continues the loop until no more tools are called
 /// 5. Implements safety limits to prevent runaway tool execution
-/// 
+///
 /// # Arguments
 /// * `client` - LLM client for making API calls
 /// * `model` - Model name to use for the conversation
@@ -250,7 +243,7 @@ pub async fn save_chat_to_storage(
 /// * `toolset` - Reference to the current toolset for getting tools
 /// * `streaming_msg` - Signal for displaying streaming responses
 /// * `save_chat_fn` - Async closure for saving the chat
-/// 
+///
 /// # Returns
 /// Result indicating success or failure, and the number of tool calls made
 pub async fn run_tools_loop<F, Fut>(
@@ -299,13 +292,19 @@ where
                         current_tool_call = Some(t.clone());
                     } else {
                         current_tool_call.as_mut().map(|c| {
-                            let existing = c.clone().function.map(|fd| {
-                                fd.arguments.clone().unwrap_or_else(|| "".to_string())
-                            }).unwrap_or_else(|| "".to_string());
-                            let delta = t.clone().function.map(|fd| {
-                                fd.arguments.clone().unwrap_or_else(|| "".to_string())
-                            }).unwrap_or_else(|| "".to_string());
-                            c.function.as_mut().map(|fd| fd.arguments = Some(format!("{existing}{delta}")));
+                            let existing = c
+                                .clone()
+                                .function
+                                .map(|fd| fd.arguments.clone().unwrap_or_else(|| "".to_string()))
+                                .unwrap_or_else(|| "".to_string());
+                            let delta = t
+                                .clone()
+                                .function
+                                .map(|fd| fd.arguments.clone().unwrap_or_else(|| "".to_string()))
+                                .unwrap_or_else(|| "".to_string());
+                            c.function
+                                .as_mut()
+                                .map(|fd| fd.arguments = Some(format!("{existing}{delta}")));
                         });
                     }
                 }
@@ -343,11 +342,12 @@ where
                     tool_calls: Some(tool_calls.clone()),
                 });
             });
-            save_chat_fn().await?;
+            // save_chat_fn().await?;
         }
 
         // If no tools were called, we're done
         if tool_calls.is_empty() {
+            save_chat_fn().await?;
             warn!("No tool calls, exit loop");
             return Ok(count);
         }
@@ -358,11 +358,11 @@ where
         chat.with_mut(|c| {
             c.messages.extend(new_messages);
         });
-        save_chat_fn().await?;
 
         // Safety check: prevent runaway tool execution
         count += 1;
-        if count > 10 {
+        if count >= 10 {
+            save_chat_fn().await?;
             warn!("Count exceeded, exit loop");
             return Ok(count);
         }

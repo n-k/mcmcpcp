@@ -3,14 +3,14 @@ use async_trait::async_trait;
 use idb::{Database, DatabaseEvent, Factory, KeyPath, ObjectStoreParams, TransactionMode};
 use js_sys::wasm_bindgen::JsValue;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use serde_wasm_bindgen::Serializer;
 
 use dioxus::logger::tracing::warn;
 
+use super::Storage;
 use crate::AppSettings;
 use crate::storage::Chat;
-use super::Storage;
 
 #[derive(Debug)]
 pub struct IdbStorage {
@@ -63,7 +63,8 @@ impl Storage for IdbStorage {
     async fn save_settings(&self, settings: &AppSettings) -> anyhow::Result<()> {
         // let db = IdbStorage::create_db().await?;
         // warn!("Starting save process...");
-        let transaction = self.db
+        let transaction = self
+            .db
             .transaction(&["settings"], TransactionMode::ReadWrite)
             .map_err(|e| anyhow!("{e:?}"))?;
         let store = transaction
@@ -74,10 +75,7 @@ impl Storage for IdbStorage {
         let doc = settings.serialize(&Serializer::json_compatible()).unwrap();
         // warn!("serialized: {doc:?}");
         let put_res = store
-            .put(
-                &doc,
-                None,
-            )
+            .put(&doc, None)
             .map_err(|e| anyhow!("{e:?}"))?
             .await
             .map_err(|e| anyhow!("{e:?}"))?;
@@ -89,7 +87,8 @@ impl Storage for IdbStorage {
 
     async fn load_settings(&self) -> anyhow::Result<Option<AppSettings>> {
         // let db = IdbStorage::create_db().await?;
-        let transaction = self.db
+        let transaction = self
+            .db
             .transaction(&["settings"], TransactionMode::ReadOnly)
             .map_err(|e| anyhow!("{e:?}"))?;
         let store = transaction.object_store("settings").unwrap();
@@ -112,7 +111,8 @@ impl Storage for IdbStorage {
     }
 
     async fn save_chat(&self, chat: &Chat) -> anyhow::Result<u32> {
-        let transaction = self.db
+        let transaction = self
+            .db
             .transaction(&["sessions"], TransactionMode::ReadWrite)
             .map_err(|e| anyhow!("{e:?}"))?;
         let store = transaction
@@ -123,33 +123,29 @@ impl Storage for IdbStorage {
         // warn!("serialized: {doc:?}");
         let put_res = if chat.id.is_some() {
             store
-                .put(
-                    &doc,
-                    None,
-                )
+                .put(&doc, None)
                 .map_err(|e| anyhow!("{e:?}"))?
                 .await
                 .map_err(|e| anyhow!("{e:?}"))?
         } else {
             store
-                .add(
-                    &doc,
-                    None,
-                )
+                .add(&doc, None)
                 .map_err(|e| anyhow!("{e:?}"))?
                 .await
                 .map_err(|e| anyhow!("{e:?}"))?
         };
-        transaction.commit()
+        transaction
+            .commit()
             .map_err(|e| anyhow!("{e:?}"))?
             .await
             .map_err(|e| anyhow!("{e:?}"))?;
 
         Ok(put_res.as_f64().map(|n| n as u32).unwrap())
     }
-    
+
     async fn list_chats(&self) -> anyhow::Result<Vec<Chat>> {
-        let transaction = self.db
+        let transaction = self
+            .db
             .transaction(&["sessions"], TransactionMode::ReadWrite)
             .map_err(|e| anyhow!("{e:?}"))?;
         let store = transaction
@@ -166,9 +162,10 @@ impl Storage for IdbStorage {
         transaction.await.map_err(|e| anyhow!("{e:?}"))?;
         Ok(all_chats)
     }
-    
+
     async fn get_chat(&self, id: u32) -> anyhow::Result<Option<Chat>> {
-        let transaction = self.db
+        let transaction = self
+            .db
             .transaction(&["sessions"], TransactionMode::ReadWrite)
             .map_err(|e| anyhow!("{e:?}"))?;
         let store = transaction
@@ -182,25 +179,29 @@ impl Storage for IdbStorage {
             .map_err(|e| anyhow!("{e:?}"))?;
 
         // Deserialize the stored data
-        let stored_chat: Option<anyhow::Result<Chat>> =
-            stored_chat.map(|stored_chat| {
-                serde_wasm_bindgen::from_value(stored_chat).map_err(|e| anyhow!("{e:?}"))
-            });
+        let stored_chat: Option<anyhow::Result<Chat>> = stored_chat.map(|stored_chat| {
+            serde_wasm_bindgen::from_value(stored_chat).map_err(|e| anyhow!("{e:?}"))
+        });
         let stored_chat = stored_chat.transpose()?;
 
         transaction.await.map_err(|e| anyhow!("{e:?}"))?;
         Ok(stored_chat)
     }
-    
+
     async fn delete_chat(&self, id: u32) -> anyhow::Result<()> {
-        let transaction = self.db
+        let transaction = self
+            .db
             .transaction(&["sessions"], TransactionMode::ReadWrite)
             .map_err(|e| anyhow!("{e:?}"))?;
         let store = transaction
             .object_store("sessions")
             .map_err(|e| anyhow!("{e:?}"))?;
 
-        store.delete(JsValue::from_f64(id.into())).unwrap().await.map_err(|e| anyhow!("{e:?}"))?;
+        store
+            .delete(JsValue::from_f64(id.into()))
+            .unwrap()
+            .await
+            .map_err(|e| anyhow!("{e:?}"))?;
 
         transaction.await.map_err(|e| anyhow!("{e:?}"))?;
         Ok(())

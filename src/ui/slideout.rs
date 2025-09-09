@@ -8,12 +8,12 @@ pub struct SlideoutProps {
 
 #[component]
 pub fn Slideout(mut props: SlideoutProps) -> Element {
-    let transform = if props.open.read().clone() { 
+    let transform = if props.open.read().clone() {
         "transform: translateX(0);"
-    } else { 
+    } else {
         "transform: translateX(100%);"
     };
-    
+
     let visibility = if props.open.read().clone() {
         "visibility: visible; opacity: 1;"
     } else {
@@ -37,7 +37,7 @@ pub fn Slideout(mut props: SlideoutProps) -> Element {
             onclick: move |_| {
                 props.open.set(false);
             },
-            
+
             // Slideout panel
             div {
                 style: "

@@ -1,6 +1,10 @@
 use dioxus::{logger::tracing::warn, prelude::*};
 
-use crate::{app_settings::Chat, storage::{get_storage, AppStorage, Storage}, Route};
+use crate::{
+    Route,
+    app_settings::Chat,
+    storage::{AppStorage, Storage, get_storage},
+};
 
 #[derive(Props, Clone, PartialEq)]
 pub struct ChatLogProps {
@@ -19,9 +23,9 @@ pub fn ChatLog(props: ChatLogProps) -> Element {
         };
         storage
     });
-    
+
     let mut refresh_trigger = use_signal(|| 0);
-    
+
     let chats: Resource<Option<Vec<Chat>>> = use_resource(move || {
         let _ = refresh_trigger(); // Subscribe to refresh trigger
         async move {
@@ -57,7 +61,7 @@ pub fn ChatLog(props: ChatLogProps) -> Element {
                 style: "padding: 1rem;",
                 "Loading..."
             }
-        }
+        };
     };
     let Some(chats) = chats else {
         return rsx! {
@@ -65,7 +69,7 @@ pub fn ChatLog(props: ChatLogProps) -> Element {
                 style: "padding: 1rem;",
                 "Loading..."
             }
-        }
+        };
     };
 
     rsx! {
@@ -74,7 +78,7 @@ pub fn ChatLog(props: ChatLogProps) -> Element {
             onclick: move |e: Event<MouseData>| {
                 e.stop_propagation();
             },
-            
+
             div {
                 style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;",
                 h3 { style: "margin: 0;", "Chat History" }
@@ -95,9 +99,9 @@ pub fn ChatLog(props: ChatLogProps) -> Element {
                     }
                 }
             }
-            
+
             hr { style: "margin-bottom: 1rem;" }
-            
+
             if chats.is_empty() {
                 div {
                     style: "text-align: center; color: #666; padding: 2rem;",
@@ -109,7 +113,7 @@ pub fn ChatLog(props: ChatLogProps) -> Element {
                         let chat_id = c.id;
                         let message_count = c.messages.len();
                         let on_close_handler = props.on_close.clone();
-                        
+
                         rsx! {
                             div {
                                 style: "
@@ -122,7 +126,7 @@ pub fn ChatLog(props: ChatLogProps) -> Element {
                                     border-radius: 4px;
                                     background: #f9f9f9;
                                 ",
-                                
+
                                 div {
                                     style: "flex: 1;",
                                     if let Some(id) = chat_id {
@@ -163,7 +167,7 @@ pub fn ChatLog(props: ChatLogProps) -> Element {
                                         }
                                     }
                                 }
-                                
+
                                 if let Some(id) = chat_id {
                                     button {
                                         style: "

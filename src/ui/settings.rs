@@ -17,8 +17,9 @@ pub struct SettingsProps {
 #[allow(non_snake_case)]
 #[component]
 pub fn Settings(props: SettingsProps) -> Element {
-    let mut provider = use_signal(move || {
-        ProviderSettings::OpenRouter { api_key: "".to_string(), model: None }
+    let mut provider = use_signal(move || ProviderSettings::OpenRouter {
+        api_key: "".to_string(),
+        model: None,
     });
     let mut settings = use_resource(move || async move {
         let storage = match get_storage().await {
@@ -82,12 +83,12 @@ pub fn Settings(props: SettingsProps) -> Element {
     let settings = settings.unwrap();
 
     rsx! {
-        div { 
+        div {
             style: "padding: 1rem; height: 100%; overflow-y: auto;",
             onclick: move |e: Event<MouseData>| {
                 e.stop_propagation();
             },
-            
+
             div {
                 style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;",
                 h3 { style: "margin: 0;", "Settings" }
@@ -108,16 +109,16 @@ pub fn Settings(props: SettingsProps) -> Element {
                     }
                 }
             }
-            
+
             hr { style: "margin-bottom: 1rem;" }
-            
+
             ElProviderSettings {
                 ps: provider,
                 onchange: handle_provider_change,
             }
-            
+
             hr { style: "margin: 2rem 0 1rem 0;" }
-            
+
             McpServerSettings {
                 settings: settings,
                 on_save: save_settings,
@@ -128,19 +129,13 @@ pub fn Settings(props: SettingsProps) -> Element {
 
 #[cfg(target_arch = "wasm32")]
 #[component]
-fn McpServerSettings(
-    settings: AppSettings,
-    on_save: Callback<AppSettings, ()>,
-) -> Element {
+fn McpServerSettings(settings: AppSettings, on_save: Callback<AppSettings, ()>) -> Element {
     rsx! {}
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 #[component]
-fn McpServerSettings(
-    settings: AppSettings,
-    on_save: Callback<AppSettings, ()>,
-) -> Element {
+fn McpServerSettings(settings: AppSettings, on_save: Callback<AppSettings, ()>) -> Element {
     let servers = use_signal(|| settings.mcp_servers.clone().unwrap_or_default());
     let mut editing_server = use_signal(|| None::<usize>);
     let mut show_add_form = use_signal(|| false);
@@ -161,12 +156,12 @@ fn McpServerSettings(
     let add_server = move |server: ServerSpec| {
         let mut current_servers = _s();
         current_servers.push(server);
-        
+
         let updated_settings = AppSettings {
             mcp_servers: Some(current_servers.clone()),
             .._st.clone()
         };
-        
+
         _s.set(current_servers);
         on_save(updated_settings);
 
@@ -184,7 +179,7 @@ fn McpServerSettings(
                 mcp_servers: Some(current_servers.clone()),
                 .._st.clone()
             };
-            
+
             _s.set(current_servers);
             on_save(updated_settings);
         }
@@ -201,7 +196,7 @@ fn McpServerSettings(
                 mcp_servers: Some(current_servers.clone()),
                 .._st.clone()
             };
-            
+
             _s.set(current_servers);
             on_save(updated_settings);
         }
@@ -210,7 +205,7 @@ fn McpServerSettings(
     rsx! {
         div {
             h4 { style: "margin: 0 0 1rem 0;", "MCP Servers" }
-            
+
             // Server list
             div { style: "margin-bottom: 1rem;",
                 if servers().is_empty() {
@@ -234,7 +229,7 @@ fn McpServerSettings(
                     }
                 }
             }
-            
+
             // Add server section
             if show_add_form() {
                 ServerForm {
@@ -286,11 +281,13 @@ fn ServerItem(
         }
     } else {
         let args_display = server.args.join(" ");
-        let env_display = server.env.iter()
+        let env_display = server
+            .env
+            .iter()
             .map(|(k, v)| format!("{k}={v}"))
             .collect::<Vec<_>>()
             .join(", ");
-        
+
         rsx! {
             div {
                 style: "
@@ -303,7 +300,7 @@ fn ServerItem(
                 div { style: "display: flex; justify-content: space-between; align-items: flex-start;",
                     div { style: "flex-grow: 1;",
                         div { style: "font-weight: bold; margin-bottom: 0.25rem;", "{server.id}" }
-                        div { style: "font-family: monospace; font-size: 0.9em; color: #666; margin-bottom: 0.25rem;", 
+                        div { style: "font-family: monospace; font-size: 0.9em; color: #666; margin-bottom: 0.25rem;",
                             "{server.cmd}"
                         }
                         if !server.args.is_empty() {
@@ -317,7 +314,7 @@ fn ServerItem(
                             }
                         }
                     }
-                    div { 
+                    div {
                         style: "
                         position: relative;
                         left: -6em;
@@ -370,22 +367,19 @@ fn ServerForm(
     let mut id = use_signal(|| server.as_ref().map(|s| s.id.clone()).unwrap_or_default());
     let mut cmd = use_signal(|| server.as_ref().map(|s| s.cmd.clone()).unwrap_or_default());
     let mut args_text = use_signal(|| {
-        server.as_ref()
+        server
+            .as_ref()
             .map(|s| s.args.join(" "))
             .unwrap_or_default()
     });
-    let mut env_vars = use_signal(|| {
-        server.as_ref()
-            .map(|s| s.env.clone())
-            .unwrap_or_default()
-    });
+    let mut env_vars = use_signal(|| server.as_ref().map(|s| s.env.clone()).unwrap_or_default());
     let mut new_env_key = use_signal(|| String::new());
     let mut new_env_value = use_signal(|| String::new());
 
     let add_env_var = move |_| {
         let key = new_env_key().trim().to_string();
         let value = new_env_value().trim().to_string();
-        
+
         if !key.is_empty() {
             let mut current_env = env_vars();
             current_env.insert(key, value);
@@ -406,24 +400,24 @@ fn ServerForm(
         let cmd_val = cmd().trim().to_string();
         let args_text = args_text.cloned();
         let args_val = args_text.trim();
-        
+
         if id_val.is_empty() || cmd_val.is_empty() {
             return; // Basic validation
         }
-        
+
         let args_vec = if args_val.is_empty() {
             Vec::new()
         } else {
             args_val.split_whitespace().map(|s| s.to_string()).collect()
         };
-        
+
         let server_spec = ServerSpec {
             id: id_val,
             cmd: cmd_val,
             args: args_vec,
             env: env_vars(),
         };
-        
+
         on_save(server_spec);
     };
 
@@ -453,7 +447,7 @@ fn ServerForm(
                     },
                 }
             }
-            
+
             div { style: "margin-bottom: 1rem;",
                 label { style: "display: block; margin-bottom: 0.25rem; font-weight: bold;", "Command" }
                 input {
@@ -471,7 +465,7 @@ fn ServerForm(
                     },
                 }
             }
-            
+
             div { style: "margin-bottom: 1rem;",
                 label { style: "display: block; margin-bottom: 0.25rem; font-weight: bold;", "Arguments (space-separated)" }
                 input {
@@ -493,7 +487,7 @@ fn ServerForm(
             // Environment Variables Section
             div { style: "margin-bottom: 1rem;",
                 label { style: "display: block; margin-bottom: 0.5rem; font-weight: bold;", "Environment Variables" }
-                
+
                 // Existing environment variables
                 if !env_vars().is_empty() {
                     div { style: "margin-bottom: 0.5rem;",
@@ -532,7 +526,7 @@ fn ServerForm(
                         }
                     }
                 }
-                
+
                 // Add new environment variable
                 div { style: "display: flex; gap: 0.5rem; align-items: flex-end;",
                     div { style: "flex: 1;",
@@ -586,7 +580,7 @@ fn ServerForm(
                     }
                 }
             }
-            
+
             div { style: "display: flex; gap: 0.5rem; justify-content: flex-end;",
                 button {
                     style: "
@@ -669,7 +663,10 @@ fn OllamaSettings(
         } else {
             None
         };
-        onchange(ProviderSettings::Ollama { api_url: e.value(), model });
+        onchange(ProviderSettings::Ollama {
+            api_url: e.value(),
+            model,
+        });
     };
     let set_model = move |model: Option<String>| async move {
         let api_url = if let ProviderSettings::Ollama { api_url, .. } = ps() {
@@ -706,7 +703,7 @@ fn OllamaSettings(
     } else {
         ("http://192.168.29.3:11434/v1".to_string(), None)
     };
-    
+
     rsx! {
         div { style: "
             flex-grow: 1;
@@ -718,8 +715,8 @@ fn OllamaSettings(
             input { value: api_url, oninput: handle_url_change }
             // label { style: "margin-top: 1em;", "API Key" }
             // input { value: settings.api_key, oninput: handle_key_change }
-            label { 
-                style: "margin-top: 1em;", 
+            label {
+                style: "margin-top: 1em;",
                 "Select Model",
                 button {
                     style: "max-height: 2em; margin-left: 1em;",
@@ -755,7 +752,10 @@ fn OpenRouterSettings(
         } else {
             None
         };
-        onchange(ProviderSettings::OpenRouter { api_key: e.value(), model });
+        onchange(ProviderSettings::OpenRouter {
+            api_key: e.value(),
+            model,
+        });
     };
     let set_model = move |model: Option<String>| async move {
         let api_key = if let ProviderSettings::OpenRouter { api_key, .. } = ps() {
@@ -771,10 +771,7 @@ fn OpenRouterSettings(
         } else {
             "".to_string()
         };
-        let lmc = LlmClient::new(
-            "https://openrouter.ai/api/v1".to_string(), 
-            api_key,
-        );
+        let lmc = LlmClient::new("https://openrouter.ai/api/v1".to_string(), api_key);
         let models = lmc.models().await?;
         let names = models.data.into_iter().map(|m| m.id).collect::<Vec<_>>();
         anyhow::Ok(names)
@@ -800,7 +797,7 @@ fn OpenRouterSettings(
         .into_iter()
         .filter(|s| s.to_lowercase().contains(&*filter.read()))
         .collect();
-    
+
     rsx! {
         div { style: "
             flex-grow: 1;
@@ -812,8 +809,8 @@ fn OpenRouterSettings(
             // input { value: api_url, oninput: handle_url_change }
             label { style: "margin-top: 1em;", "API Key" }
             input { value: api_key, oninput: handle_key_change }
-            label { 
-                style: "margin-top: 1em;", 
+            label {
+                style: "margin-top: 1em;",
                 "Select Model",
                 button {
                     style: "max-height: 2em; margin-left: 1em;",

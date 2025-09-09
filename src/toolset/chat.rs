@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
-use crate::{
-    mcp::host::MCPHost,
-    toolset::Toolset,
-};
+use crate::{mcp::host::MCPHost, toolset::Toolset};
 
 #[derive(Clone)]
 pub struct ChatTools {
@@ -14,9 +11,7 @@ pub struct ChatTools {
 
 impl ChatTools {
     pub fn new(host: Arc<MCPHost>) -> Self {
-        Self {
-            host,
-        }
+        Self { host }
     }
 }
 

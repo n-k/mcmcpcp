@@ -31,9 +31,9 @@ use app_settings::AppSettings;
 use ui::home::ChatEl;
 use ui::home::NewChat;
 use ui::home::NewStory;
+use ui::mcp_tools::McpTools;
 use ui::settings::Settings;
 use ui::slideout::Slideout;
-use ui::mcp_tools::McpTools;
 
 use crate::mcp::host::MCPHost;
 use crate::storage::Storage;
@@ -87,9 +87,7 @@ pub fn App() -> Element {
         let st = settings();
         // sync MCP servers with settings
         let host = consume_context::<Arc<MCPHost>>();
-        let specs = st.map(|st| st.mcp_servers)
-            .flatten()
-            .unwrap_or_default();
+        let specs = st.map(|st| st.mcp_servers).flatten().unwrap_or_default();
         host.sync_servers(specs).await?;
 
         anyhow::Ok(())

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use crate::{app_settings::Chat, AppSettings};
+use crate::{AppSettings, app_settings::Chat};
 
 #[cfg(target_arch = "wasm32")]
 mod browser_storage;
@@ -11,7 +11,6 @@ mod file_storage;
 pub type AppStorage = file_storage::FileStorage;
 #[cfg(target_arch = "wasm32")]
 pub type AppStorage = browser_storage::IdbStorage;
-
 
 #[async_trait(?Send)]
 pub trait Storage {
@@ -25,10 +24,10 @@ pub trait Storage {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn get_storage() -> anyhow::Result<AppStorage> {
-    use std::path::PathBuf;
     use directories_next::ProjectDirs;
+    use std::path::PathBuf;
 
-    let base = if let Some(proj_dirs) = ProjectDirs::from("com", "N K",  "mcmcpcp") {
+    let base = if let Some(proj_dirs) = ProjectDirs::from("com", "N K", "mcmcpcp") {
         proj_dirs.config_dir().to_path_buf()
         // Lin: /home/alice/.config/barapp
         // Win: C:\Users\Alice\AppData\Roaming\Foo Corp\Bar App\config

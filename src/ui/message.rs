@@ -1,21 +1,23 @@
 use dioxus::prelude::*;
 
-use crate::{ui::collapsible::Collapsible, llm::{ContentPart, Message}};
+use crate::{
+    llm::{ContentPart, Message},
+    ui::collapsible::Collapsible,
+};
 
 #[component]
 pub fn MessageEl(msg: Message) -> Element {
     let (class, collapsed, content) = match msg {
-        Message::System { content } => {
-            ("message system-message", true, content)
-        }
-        Message::Assistant { content, .. } => {
-            ("message ai-message", false, content.unwrap_or_else(|| "".to_string()))
-        }
-        Message::Tool { content , .. } => {
-            ("message tool-message", true, content)
-        }
+        Message::System { content } => ("message system-message", true, content),
+        Message::Assistant { content, .. } => (
+            "message ai-message",
+            false,
+            content.unwrap_or_else(|| "".to_string()),
+        ),
+        Message::Tool { content, .. } => ("message tool-message", true, content),
         Message::User { content } => {
-            let strings: Vec<String> = content.into_iter()
+            let strings: Vec<String> = content
+                .into_iter()
                 .map(|p| match p {
                     ContentPart::Text { text } => text,
                     ContentPart::ImageUrl { .. } => "[Image]".to_string(),

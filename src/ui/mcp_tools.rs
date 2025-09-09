@@ -2,8 +2,8 @@ use dioxus::logger::tracing::warn;
 use dioxus::prelude::*;
 use std::sync::Arc;
 
-use crate::mcp::host::MCPHost;
 use crate::mcp::ToolDescriptor;
+use crate::mcp::host::MCPHost;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct McpToolsProps {
@@ -13,14 +13,14 @@ pub struct McpToolsProps {
 #[component]
 pub fn McpTools(props: McpToolsProps) -> Element {
     let mut tools = use_signal(|| Vec::<ToolDescriptor>::new());
-    
+
     // Load tools when component mounts
     use_effect(move || {
         let host = consume_context::<Arc<MCPHost>>();
         let host_clone = host.clone();
         spawn(async move {
             let tool_list = host_clone.list_tools().await;
-        tools.set(tool_list);
+            tools.set(tool_list);
         });
     });
     let tools = tools();
@@ -34,7 +34,7 @@ pub fn McpTools(props: McpToolsProps) -> Element {
                 overflow-y: auto;
                 background: #fff;
             ",
-            
+
             // Header
             div {
                 style: "
@@ -75,7 +75,7 @@ pub fn McpTools(props: McpToolsProps) -> Element {
                     flex-direction: column;
                     gap: 1rem;
                 ",
-                
+
                 if is_empty {
                     div {
                         style: "
@@ -89,9 +89,9 @@ pub fn McpTools(props: McpToolsProps) -> Element {
                 } else {
                     {tools.into_iter().map(|tool| {
                         rsx! {
-                            ToolCard { 
+                            ToolCard {
                                 key: "{tool.server_id}-{tool.tool.name}",
-                                tool: tool 
+                                tool: tool
                             }
                         }
                     })}
@@ -109,7 +109,7 @@ struct ToolCardProps {
 #[component]
 fn ToolCard(props: ToolCardProps) -> Element {
     let mut expanded = use_signal(|| false);
-    
+
     rsx! {
         div {
             style: "
@@ -119,7 +119,7 @@ fn ToolCard(props: ToolCardProps) -> Element {
                 background: #f9f9f9;
                 transition: all 0.2s ease;
             ",
-            
+
             // Tool header
             div {
                 style: "
@@ -129,10 +129,10 @@ fn ToolCard(props: ToolCardProps) -> Element {
                     cursor: pointer;
                 ",
                 onclick: move |_| expanded.toggle(),
-                
+
                 div {
                     style: "flex: 1;",
-                    
+
                     // Tool name
                     h3 {
                         style: "
@@ -142,7 +142,7 @@ fn ToolCard(props: ToolCardProps) -> Element {
                         ",
                         "{props.tool.tool.name}"
                     }
-                    
+
                     // Server ID
                     div {
                         style: "
@@ -152,7 +152,7 @@ fn ToolCard(props: ToolCardProps) -> Element {
                         ",
                         "Server: {props.tool.server_id}"
                     }
-                    
+
                     // Description (if available)
                     {
                         if let Some(description) = &props.tool.tool.description {
@@ -171,7 +171,7 @@ fn ToolCard(props: ToolCardProps) -> Element {
                         }
                     }
                 }
-                
+
                 // Expand/collapse indicator
                 div {
                     style: "
@@ -182,7 +182,7 @@ fn ToolCard(props: ToolCardProps) -> Element {
                     if expanded() { "−" } else { "+" }
                 }
             }
-            
+
             // Expanded content (schema)
             if expanded() {
                 div {
@@ -191,7 +191,7 @@ fn ToolCard(props: ToolCardProps) -> Element {
                         padding-top: 1rem;
                         border-top: 1px solid #e0e0e0;
                     ",
-                    
+
                     h4 {
                         style: "
                             margin: 0 0 0.5rem 0;
@@ -200,7 +200,7 @@ fn ToolCard(props: ToolCardProps) -> Element {
                         ",
                         "Input Schema:"
                     }
-                    
+
                     pre {
                         style: "
                             background: #2c3e50;

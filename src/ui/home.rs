@@ -6,14 +6,19 @@
 
 use std::sync::Arc;
 
-use dioxus::{
-    logger::tracing::warn,
-    prelude::*,
-};
+use dioxus::{logger::tracing::warn, prelude::*};
 use serde_json::json;
 
 use crate::{
-    app_settings::{AppSettings, Chat, Toolsets}, mcp::host::MCPHost, storage::{get_storage, Storage}, toolset::{chat::ChatTools, story::{Story, StoryWriter}, Toolset}, utils::{run_tools_loop, save_chat_to_storage}
+    app_settings::{AppSettings, Chat, Toolsets},
+    mcp::host::MCPHost,
+    storage::{Storage, get_storage},
+    toolset::{
+        Toolset,
+        chat::ChatTools,
+        story::{Story, StoryWriter},
+    },
+    utils::{run_tools_loop, save_chat_to_storage},
 };
 use crate::{
     llm::{ContentPart, LlmClient, Message}, // LLM types and client
@@ -59,20 +64,13 @@ pub fn NewStory() -> Element {
 /// It manages the conversation state, handles streaming responses, executes tools,
 /// and provides safety mechanisms to prevent runaway tool execution.
 #[component]
-pub fn Home(
-    id: Signal<Option<u32>>,
-    chat_type: Toolsets,
-) -> Element {
+pub fn Home(id: Signal<Option<u32>>, chat_type: Toolsets) -> Element {
     let nav = navigator();
     let mut toolset: Signal<Box<dyn Toolset>> = use_signal(|| {
         let host = consume_context::<Arc<MCPHost>>();
         let ts: Box<dyn Toolset> = match chat_type {
-            Toolsets::Chat => {
-                Box::new(ChatTools::new(host))
-            },
-            Toolsets::Story => {
-                Box::new(StoryWriter::new(Default::default()))
-            },
+            Toolsets::Chat => Box::new(ChatTools::new(host)),
+            Toolsets::Story => Box::new(StoryWriter::new(Default::default())),
         };
         ts
     });
@@ -87,10 +85,8 @@ pub fn Home(
             value: match chat_type {
                 Toolsets::Chat => {
                     json!({})
-                },
-                Toolsets::Story => {
-                    serde_json::to_value(Story::default()).unwrap()
-                },
+                }
+                Toolsets::Story => serde_json::to_value(Story::default()).unwrap(),
             },
         }
     });
@@ -115,11 +111,10 @@ pub fn Home(
         if let Ok(Some(ch)) = storage.get_chat(id).await {
             let host = consume_context::<Arc<MCPHost>>();
             let ts: Box<dyn Toolset> = if ch.chat_type == Toolsets::Story {
-                let story: Story = serde_json::from_value(ch.value.clone())
-                    .unwrap_or_else(|e| {
-                        warn!("Invalid story metadta: {e:?}");
-                        Default::default()
-                    });
+                let story: Story = serde_json::from_value(ch.value.clone()).unwrap_or_else(|e| {
+                    warn!("Invalid story metadta: {e:?}");
+                    Default::default()
+                });
                 Box::new(StoryWriter::new(story))
             } else {
                 Box::new(ChatTools::new(host))
@@ -219,7 +214,7 @@ pub fn Home(
         };
 
         let ts = &*toolset.read();
-        
+
         error_state.set(None);
         let count = run_tools_loop(
             &client,
@@ -228,10 +223,11 @@ pub fn Home(
             ts,
             &mut streaming_msg,
             save_chat,
-        ).await?;
+        )
+        .await?;
 
         // Handle tool count warning if too many tools were executed
-        if count > 10 {
+        if count >= 10 {
             tool_count_warning.set(true);
         }
 
@@ -245,7 +241,7 @@ pub fn Home(
     let send_msg = move |s: String| async move {
         // Clear any previous errors
         error_state.set(None);
-        
+
         // Add user message to chat history
         chat.with_mut(|c| {
             c.messages.push(Message::User {
@@ -256,7 +252,7 @@ pub fn Home(
         // Start the LLM response and tool execution loop
         if let Err(e) = run_tools_loop_impl().await {
             error_state.set(Some(format!("Error during conversation: {}", e)));
-        }  
+        }
     };
 
     // Renders the currently streaming message if one exists.
@@ -273,7 +269,7 @@ pub fn Home(
 
     // Render the main chat interface
     rsx! {
-        div { 
+        div {
             class: "content {chat_class}",
             div {
                 class: "chat {chat_class}",

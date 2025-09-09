@@ -1,10 +1,10 @@
 //! Markdown to RSX conversion utilities for MCMCPCP.
-//! 
+//!
 //! This module provides functionality to convert Markdown text into Dioxus RSX elements,
 //! allowing LLM responses formatted in Markdown to be rendered as proper HTML in the UI.
 //! It uses the pulldown-cmark parser to process Markdown and converts it to a tree of
 //! Dioxus elements.
-//! 
+//!
 //! The converter supports most common Markdown elements including headings, paragraphs,
 //! lists, code blocks, emphasis, tables, and more.
 
@@ -12,17 +12,17 @@ use dioxus::prelude::*;
 use pulldown_cmark::{Event, HeadingLevel, Parser, TagEnd};
 
 /// Converts a Markdown string to a Dioxus RSX Element.
-/// 
+///
 /// This function parses Markdown text using pulldown-cmark and converts it into
 /// a tree of Dioxus elements that can be rendered in the UI. It maintains a stack
 /// of element vectors to handle nested structures properly.
-/// 
+///
 /// # Arguments
 /// * `md` - The Markdown string to convert
-/// 
+///
 /// # Returns
 /// A Dioxus `Element` containing the rendered Markdown content
-/// 
+///
 /// # Supported Markdown Features
 /// - Headings (H1-H6)
 /// - Paragraphs
@@ -77,7 +77,7 @@ pub fn markdown_to_rsx<'a>(md: &'a str) -> Element {
                     TagEnd::HtmlBlock => rsx! {
                         blockquote { {children} } // Treat HTML blocks as blockquotes for safety
                     },
-                    
+
                     // List elements
                     TagEnd::List(_) => rsx! {
                         ul { {children} }
@@ -85,7 +85,7 @@ pub fn markdown_to_rsx<'a>(md: &'a str) -> Element {
                     TagEnd::Item => rsx! {
                         li { {children} }
                     },
-                    
+
                     // Table elements
                     TagEnd::Table => rsx! {
                         table { {children} }
@@ -99,7 +99,7 @@ pub fn markdown_to_rsx<'a>(md: &'a str) -> Element {
                     TagEnd::TableCell => rsx! {
                         td { {children} }
                     },
-                    
+
                     // Inline formatting elements
                     TagEnd::Emphasis => rsx! {
                         em { {children} }
@@ -107,7 +107,7 @@ pub fn markdown_to_rsx<'a>(md: &'a str) -> Element {
                     TagEnd::Strong => rsx! {
                         strong { {children} }
                     },
-                    
+
                     // Fallback for unsupported elements
                     // TODO: Add support for links, images, strikethrough, footnotes
                     _ => rsx! {
@@ -146,7 +146,7 @@ pub fn markdown_to_rsx<'a>(md: &'a str) -> Element {
             }
         }
     }
-    
+
     // Flatten all remaining stack levels and wrap in a div
     let children = stack.into_iter().flatten();
     rsx! {
