@@ -44,7 +44,7 @@ pub fn markdown_to_rsx(md: &str) -> Element {
     for ev in parser {
         match ev {
             // Start of a container element - push a new level onto the stack
-            Event::Start(tag) => {
+            Event::Start(..) => {
                 stack.push(vec![]);
                 {}
             }

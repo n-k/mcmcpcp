@@ -6,7 +6,7 @@
 //! and built-in functionality like web fetching.
 
 use serde_json::{Value, json};
-use std::{collections::HashMap, time::Duration};
+use std::{collections::{HashMap, HashSet}, time::Duration};
 use tokio::sync::RwLock;
 
 use crate::mcp::{
@@ -132,6 +132,20 @@ impl MCPHost {
                 .await
                 .insert(spec.id.clone(), Box::new(server));
         }
+        let mut spec_ids: HashSet<String> = specs.iter().map(|s| s.id.clone()).collect();
+        spec_ids.insert("builtin".into());
+
+        let ids: Vec<String> = {
+            self.servers.read().await.keys()
+                .map(|k| k.clone())
+                .collect()
+        };
+        for id in &ids {
+            if !spec_ids.contains(id) {
+                let _ = self.servers.write().await.remove(id);
+            }
+        }
+
         Ok(())
     }
 
