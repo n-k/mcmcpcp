@@ -14,14 +14,13 @@ pub struct ChatLogProps {
 #[component]
 pub fn ChatLog(props: ChatLogProps) -> Element {
     let stg: Resource<Option<AppStorage>> = use_resource(move || async move {
-        let storage = match get_storage().await {
+        match get_storage().await {
             Ok(s) => Some(s),
             Err(e) => {
                 warn!("Could not get storage: {e:?}");
                 None
             }
-        };
-        storage
+        }
     });
 
     let mut refresh_trigger = use_signal(|| 0);
@@ -57,18 +56,12 @@ pub fn ChatLog(props: ChatLogProps) -> Element {
 
     let Some(chats) = chats() else {
         return rsx! {
-            div {
-                style: "padding: 1rem;",
-                "Loading..."
-            }
+            div { style: "padding: 1rem;", "Loading..." }
         };
     };
     let Some(chats) = chats else {
         return rsx! {
-            div {
-                style: "padding: 1rem;",
-                "Loading..."
-            }
+            div { style: "padding: 1rem;", "Loading..." }
         };
     };
 
@@ -79,10 +72,9 @@ pub fn ChatLog(props: ChatLogProps) -> Element {
                 e.stop_propagation();
             },
 
-            div {
-                style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;",
+            div { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;",
                 h3 { style: "margin: 0;", "Chat History" }
-                if let Some(on_close) = props.on_close.clone() {
+                if let Some(on_close) = props.on_close {
                     button {
                         style: "
                             background: none;
@@ -103,32 +95,28 @@ pub fn ChatLog(props: ChatLogProps) -> Element {
             hr { style: "margin-bottom: 1rem;" }
 
             if chats.is_empty() {
-                div {
-                    style: "text-align: center; color: #666; padding: 2rem;",
-                    "No chats yet"
-                }
+                div { style: "text-align: center; color: #666; padding: 2rem;", "No chats yet" }
             } else {
                 for c in chats {
                     {
                         let chat_id = c.id;
                         let message_count = c.messages.len();
-                        let on_close_handler = props.on_close.clone();
+                        let on_close_handler = props.on_close;
 
                         rsx! {
-                            div {
-                                style: "
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: space-between;
-                                    padding: 0.5rem;
-                                    margin-bottom: 0.5rem;
-                                    border: 1px solid #ddd;
-                                    border-radius: 4px;
-                                    background: #f9f9f9;
-                                ",
 
-                                div {
-                                    style: "flex: 1;",
+                            div { style: "
+                                                                display: flex;
+                                                                align-items: center;
+                                                                justify-content: space-between;
+                                                                padding: 0.5rem;
+                                                                margin-bottom: 0.5rem;
+                                                                border: 1px solid #ddd;
+                                                                border-radius: 4px;
+                                                                background: #f9f9f9;
+                                                            ",
+        
+                                div { style: "flex: 1;",
                                     if let Some(id) = chat_id {
                                         Link {
                                             style: "text-decoration: none; color: #333;",
@@ -138,14 +126,8 @@ pub fn ChatLog(props: ChatLogProps) -> Element {
                                                     on_close.call(());
                                                 }
                                             },
-                                            div {
-                                                style: "font-weight: bold; margin-bottom: 0.25rem;",
-                                                "Chat #{id}"
-                                            }
-                                            div {
-                                                style: "font-size: 0.8rem; color: #666;",
-                                                "{message_count} messages"
-                                            }
+                                            div { style: "font-weight: bold; margin-bottom: 0.25rem;", "Chat #{id}" }
+                                            div { style: "font-size: 0.8rem; color: #666;", "{message_count} messages" }
                                         }
                                     } else {
                                         Link {
@@ -156,30 +138,24 @@ pub fn ChatLog(props: ChatLogProps) -> Element {
                                                     on_close.call(());
                                                 }
                                             },
-                                            div {
-                                                style: "font-weight: bold; margin-bottom: 0.25rem;",
-                                                "Unnamed chat"
-                                            }
-                                            div {
-                                                style: "font-size: 0.8rem; color: #666;",
-                                                "{message_count} messages"
-                                            }
+                                            div { style: "font-weight: bold; margin-bottom: 0.25rem;", "Unnamed chat" }
+                                            div { style: "font-size: 0.8rem; color: #666;", "{message_count} messages" }
                                         }
                                     }
                                 }
-
+        
                                 if let Some(id) = chat_id {
                                     button {
                                         style: "
-                                            background: #ff4444;
-                                            color: white;
-                                            border: none;
-                                            border-radius: 3px;
-                                            padding: 0.25rem 0.5rem;
-                                            cursor: pointer;
-                                            font-size: 0.8rem;
-                                            margin-left: 0.5rem;
-                                        ",
+                                                                        background: #ff4444;
+                                                                        color: white;
+                                                                        border: none;
+                                                                        border-radius: 3px;
+                                                                        padding: 0.25rem 0.5rem;
+                                                                        cursor: pointer;
+                                                                        font-size: 0.8rem;
+                                                                        margin-left: 0.5rem;
+                                                                    ",
                                         onclick: move |e: Event<MouseData>| {
                                             e.stop_propagation();
                                             delete_chat(id);

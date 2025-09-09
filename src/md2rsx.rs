@@ -33,7 +33,7 @@ use pulldown_cmark::{Event, HeadingLevel, Parser, TagEnd};
 /// - Blockquotes
 /// - Horizontal rules
 /// - Line breaks
-pub fn markdown_to_rsx<'a>(md: &'a str) -> Element {
+pub fn markdown_to_rsx(md: &str) -> Element {
     // Create a Markdown parser for the input text
     let parser = Parser::new(md);
 
@@ -46,9 +46,7 @@ pub fn markdown_to_rsx<'a>(md: &'a str) -> Element {
             // Start of a container element - push a new level onto the stack
             Event::Start(tag) => {
                 stack.push(vec![]);
-                match tag {
-                    _ => {} // Container handling is done in Event::End
-                }
+                {}
             }
             // End of a container element - pop the stack and create the appropriate RSX element
             Event::End(tag) => {
@@ -59,12 +57,24 @@ pub fn markdown_to_rsx<'a>(md: &'a str) -> Element {
                         p { {children} }
                     },
                     TagEnd::Heading(level) => match level {
-                        HeadingLevel::H1 => rsx! { h1 { {children} } },
-                        HeadingLevel::H2 => rsx! { h2 { {children} } },
-                        HeadingLevel::H3 => rsx! { h3 { {children} } },
-                        HeadingLevel::H4 => rsx! { h4 { {children} } },
-                        HeadingLevel::H5 => rsx! { h5 { {children} } },
-                        _ => rsx! { h6 { {children} } }, // H6 and any other levels
+                        HeadingLevel::H1 => rsx! {
+                            h1 { {children} }
+                        },
+                        HeadingLevel::H2 => rsx! {
+                            h2 { {children} }
+                        },
+                        HeadingLevel::H3 => rsx! {
+                            h3 { {children} }
+                        },
+                        HeadingLevel::H4 => rsx! {
+                            h4 { {children} }
+                        },
+                        HeadingLevel::H5 => rsx! {
+                            h5 { {children} }
+                        },
+                        _ => rsx! {
+                            h6 { {children} }
+                        }, // H6 and any other levels
                     },
                     TagEnd::BlockQuote(_) => rsx! {
                         blockquote { {children} }

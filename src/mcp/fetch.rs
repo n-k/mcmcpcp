@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, bail};
-use dioxus::logger::tracing::warn;
 use html2md::{TagHandler, TagHandlerFactory, parse_html_custom};
 use serde_json::{Value, json};
 
@@ -63,11 +62,7 @@ impl MCPServer for FetchMcpServer {
         }
 
         // Extract the tool name from parameters
-        let name = params
-            .get("name")
-            .map(|v| v.as_str())
-            .flatten()
-            .unwrap_or_else(|| "");
+        let name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
 
         // Only support the "fetch" tool
         if name != "fetch" && name != "fetch_raw_html" {
@@ -77,7 +72,7 @@ impl MCPServer for FetchMcpServer {
         // Extract tool arguments
         let params = params
             .get("arguments")
-            .map(|v| v.clone())
+            .cloned()
             .unwrap_or_else(|| json!({}));
 
         // Execute the fetch if URL is provided
@@ -95,8 +90,8 @@ impl MCPServer for FetchMcpServer {
                 handlers.insert("a".to_string(), Box::new(CustomFactory));
                 handlers.insert("img".to_string(), Box::new(CustomFactory));
                 handlers.insert("noscript".to_string(), Box::new(CustomFactory));
-                let md = parse_html_custom(&text, &handlers);
-                md
+
+                parse_html_custom(&text, &handlers)
             } else {
                 text
             };

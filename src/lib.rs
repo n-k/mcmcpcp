@@ -87,7 +87,7 @@ pub fn App() -> Element {
         let st = settings();
         // sync MCP servers with settings
         let host = consume_context::<Arc<MCPHost>>();
-        let specs = st.map(|st| st.mcp_servers).flatten().unwrap_or_default();
+        let specs = st.and_then(|st| st.mcp_servers).unwrap_or_default();
         host.sync_servers(specs).await?;
 
         anyhow::Ok(())
@@ -139,8 +139,7 @@ fn Layout() -> Element {
     let nav = navigator();
 
     rsx! {
-        div {
-            style: "
+        div { style: "
             position: fixed;
             top: 6rem;
             left: 1rem;
@@ -153,60 +152,60 @@ fn Layout() -> Element {
                     nav.replace(crate::Route::NewChat {});
                 },
                 img { src: NEW_CHAT_ICON }
-            },
+            }
             button {
                 onclick: move |_e: Event<MouseData>| {
                     nav.replace(crate::Route::NewStory {});
                 },
                 img { src: NEW_STORY_ICON }
-            },
+            }
             button {
                 onclick: move |_e: Event<MouseData>| {
                     slideout_content.set(SlideoutContent::Settings);
                     slideout.set(true);
                 },
                 img { src: SETTINGS_ICON }
-            },
+            }
             button {
                 onclick: move |_e: Event<MouseData>| {
                     slideout_content.set(SlideoutContent::ChatLog);
                     slideout.toggle();
                 },
                 img { src: CHATS_ICON }
-            },
+            }
             button {
                 onclick: move |_e: Event<MouseData>| {
                     slideout_content.set(SlideoutContent::McpTools);
                     slideout.set(true);
                 },
                 img { src: TOOLS_ICON }
-            },
+            }
         }
         Slideout {
             open: slideout,
-            children: rsx!{
+            children: rsx! {
                 match slideout_content() {
                     SlideoutContent::ChatLog => rsx! {
                         ChatLog {
                             on_close: move |_| {
                                 slideout.set(false);
-                            }
+                            },
                         }
                     },
                     SlideoutContent::Settings => rsx! {
                         Settings {
                             on_close: move |_| {
                                 slideout.set(false);
-                            }
+                            },
                         }
                     },
                     SlideoutContent::McpTools => rsx! {
                         McpTools {
                             on_close: move |_| {
                                 slideout.set(false);
-                            }
+                            },
                         }
-                    }
+                    },
                 }
             },
         }

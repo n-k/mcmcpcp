@@ -10,10 +10,7 @@ pub fn BoxSelect(
     let default_option: Element = if options.is_empty() && value.is_some() {
         let o = value.clone().unwrap();
         rsx! {
-            div {
-                class: "option selected",
-                "{o}"
-            }
+            div { class: "option selected", "{o}" }
         }
     } else {
         rsx! {}

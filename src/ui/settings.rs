@@ -54,10 +54,10 @@ pub fn Settings(props: SettingsProps) -> Element {
                 None
             }
         };
-        if let Some(st) = storage {
-            if let Err(e) = st.save_settings(&s).await {
-                warn!("Could not save settings: {e:?}");
-            }
+        if let Some(st) = storage
+            && let Err(e) = st.save_settings(&s).await
+        {
+            warn!("Could not save settings: {e:?}");
         }
         let mut settings_ctx = consume_context::<Signal<Option<AppSettings>>>();
         settings_ctx.set(Some(s));
@@ -76,9 +76,7 @@ pub fn Settings(props: SettingsProps) -> Element {
 
     let settings = settings();
     if settings.is_none() {
-        return rsx! {
-            "Loading..."
-        };
+        return rsx! { "Loading..." };
     }
     let settings = settings.unwrap();
 
@@ -89,10 +87,9 @@ pub fn Settings(props: SettingsProps) -> Element {
                 e.stop_propagation();
             },
 
-            div {
-                style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;",
+            div { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;",
                 h3 { style: "margin: 0;", "Settings" }
-                if let Some(on_close) = props.on_close.clone() {
+                if let Some(on_close) = props.on_close {
                     button {
                         style: "
                             background: none;
@@ -112,17 +109,11 @@ pub fn Settings(props: SettingsProps) -> Element {
 
             hr { style: "margin-bottom: 1rem;" }
 
-            ElProviderSettings {
-                ps: provider,
-                onchange: handle_provider_change,
-            }
+            ElProviderSettings { ps: provider, onchange: handle_provider_change }
 
             hr { style: "margin: 2rem 0 1rem 0;" }
 
-            McpServerSettings {
-                settings: settings,
-                on_save: save_settings,
-            }
+            McpServerSettings { settings, on_save: save_settings }
         }
     }
 }
@@ -151,7 +142,7 @@ fn McpServerSettings(settings: AppSettings, on_save: Callback<AppSettings, ()>) 
     //     on_save(updated_settings);
     // };
 
-    let mut _s = servers.clone();
+    let mut _s = servers;
     let _st = settings.clone();
     let add_server = move |server: ServerSpec| {
         let mut current_servers = _s();
@@ -168,7 +159,7 @@ fn McpServerSettings(settings: AppSettings, on_save: Callback<AppSettings, ()>) 
         show_add_form.set(false);
     };
 
-    let mut _s = servers.clone();
+    let mut _s = servers;
     let _st = settings.clone();
     let update_server = move |(index, server): (usize, ServerSpec)| {
         let mut current_servers = _s();
@@ -186,7 +177,7 @@ fn McpServerSettings(settings: AppSettings, on_save: Callback<AppSettings, ()>) 
         editing_server.set(None);
     };
 
-    let mut _s = servers.clone();
+    let mut _s = servers;
     let _st = settings.clone();
     let delete_server = move |index: usize| {
         let mut current_servers = _s();
@@ -211,7 +202,7 @@ fn McpServerSettings(settings: AppSettings, on_save: Callback<AppSettings, ()>) 
                 if servers().is_empty() {
                     p { style: "color: #666; font-style: italic;", "No MCP servers configured" }
                 } else {
-                    for (index, server) in servers().iter().enumerate() {
+                    for (index , server) in servers().iter().enumerate() {
                         ServerItem {
                             key: "{index}",
                             server: server.clone(),
@@ -276,7 +267,7 @@ fn ServerItem(
                 on_save: move |s: ServerSpec| {
                     on_save((index, s));
                 },
-                on_cancel: on_cancel,
+                on_cancel,
             }
         }
     } else {
@@ -289,8 +280,7 @@ fn ServerItem(
             .join(", ");
 
         rsx! {
-            div {
-                style: "
+            div { style: "
                     border: 1px solid #ddd;
                     border-radius: 4px;
                     padding: 1rem;
@@ -314,8 +304,7 @@ fn ServerItem(
                             }
                         }
                     }
-                    div {
-                        style: "
+                    div { style: "
                         position: relative;
                         left: -6em;
                         display: flex;
@@ -373,8 +362,8 @@ fn ServerForm(
             .unwrap_or_default()
     });
     let mut env_vars = use_signal(|| server.as_ref().map(|s| s.env.clone()).unwrap_or_default());
-    let mut new_env_key = use_signal(|| String::new());
-    let mut new_env_value = use_signal(|| String::new());
+    let mut new_env_key = use_signal(String::new);
+    let mut new_env_value = use_signal(String::new);
 
     let add_env_var = move |_| {
         let key = new_env_key().trim().to_string();
@@ -422,8 +411,7 @@ fn ServerForm(
     };
 
     rsx! {
-        div {
-            style: "
+        div { style: "
                 border: 1px solid #007bff;
                 border-radius: 4px;
                 padding: 1rem;
@@ -431,7 +419,9 @@ fn ServerForm(
                 background: #f8f9fa;
             ",
             div { style: "margin-bottom: 1rem;",
-                label { style: "display: block; margin-bottom: 0.25rem; font-weight: bold;", "Server ID" }
+                label { style: "display: block; margin-bottom: 0.25rem; font-weight: bold;",
+                    "Server ID"
+                }
                 input {
                     style: "
                         width: 100%;
@@ -449,7 +439,9 @@ fn ServerForm(
             }
 
             div { style: "margin-bottom: 1rem;",
-                label { style: "display: block; margin-bottom: 0.25rem; font-weight: bold;", "Command" }
+                label { style: "display: block; margin-bottom: 0.25rem; font-weight: bold;",
+                    "Command"
+                }
                 input {
                     style: "
                         width: 100%;
@@ -467,7 +459,9 @@ fn ServerForm(
             }
 
             div { style: "margin-bottom: 1rem;",
-                label { style: "display: block; margin-bottom: 0.25rem; font-weight: bold;", "Arguments (space-separated)" }
+                label { style: "display: block; margin-bottom: 0.25rem; font-weight: bold;",
+                    "Arguments (space-separated)"
+                }
                 input {
                     style: "
                         width: 100%;
@@ -486,12 +480,14 @@ fn ServerForm(
 
             // Environment Variables Section
             div { style: "margin-bottom: 1rem;",
-                label { style: "display: block; margin-bottom: 0.5rem; font-weight: bold;", "Environment Variables" }
+                label { style: "display: block; margin-bottom: 0.5rem; font-weight: bold;",
+                    "Environment Variables"
+                }
 
                 // Existing environment variables
                 if !env_vars().is_empty() {
                     div { style: "margin-bottom: 0.5rem;",
-                        for (key, value) in env_vars().iter() {
+                        for (key , value) in env_vars().iter() {
                             div {
                                 key: "{key}",
                                 style: "
@@ -503,7 +499,9 @@ fn ServerForm(
                                     background: #f0f0f0;
                                     border-radius: 3px;
                                 ",
-                                span { style: "font-family: monospace; font-size: 0.9em;", "{key}={value}" }
+                                span { style: "font-family: monospace; font-size: 0.9em;",
+                                    "{key}={value}"
+                                }
                                 button {
                                     style: "
                                         background: #dc3545;
@@ -530,7 +528,9 @@ fn ServerForm(
                 // Add new environment variable
                 div { style: "display: flex; gap: 0.5rem; align-items: flex-end;",
                     div { style: "flex: 1;",
-                        label { style: "display: block; margin-bottom: 0.25rem; font-size: 0.9em;", "Key" }
+                        label { style: "display: block; margin-bottom: 0.25rem; font-size: 0.9em;",
+                            "Key"
+                        }
                         input {
                             style: "
                                 width: 100%;
@@ -548,7 +548,9 @@ fn ServerForm(
                         }
                     }
                     div { style: "flex: 2;",
-                        label { style: "display: block; margin-bottom: 0.25rem; font-size: 0.9em;", "Value" }
+                        label { style: "display: block; margin-bottom: 0.25rem; font-size: 0.9em;",
+                            "Value"
+                        }
                         input {
                             style: "
                                 width: 100%;
@@ -628,24 +630,16 @@ fn ElProviderSettings(
             value: Some(p_type()),
             options: vec!["openrouter".to_string(), "ollama".to_string()],
             on_select: move |o: Option<String>| {
-                if let Some(o) = o {
-                    if &o != &p_type() {
-                        p_type.set(o);
-                    }
+                if let Some(o) = o && o != p_type() {
+                    p_type.set(o);
                 }
             },
         }
         if p_type() == "openrouter" {
-            OpenRouterSettings {
-                ps: ps,
-                onchange,
-            }
+            OpenRouterSettings { ps, onchange }
         }
         if p_type() == "ollama" {
-            OllamaSettings {
-                ps: ps,
-                onchange,
-            }
+            OllamaSettings { ps, onchange }
         }
     }
 }
@@ -655,7 +649,7 @@ fn OllamaSettings(
     ps: Signal<ProviderSettings>,
     onchange: Callback<ProviderSettings, ()>,
 ) -> Element {
-    let mut available_models = use_signal(|| Vec::<String>::new());
+    let mut available_models = use_signal(Vec::<String>::new);
 
     let handle_url_change = move |e: Event<FormData>| async move {
         let model = if let ProviderSettings::Ollama { model, .. } = ps() {
@@ -715,9 +709,8 @@ fn OllamaSettings(
             input { value: api_url, oninput: handle_url_change }
             // label { style: "margin-top: 1em;", "API Key" }
             // input { value: settings.api_key, oninput: handle_key_change }
-            label {
-                style: "margin-top: 1em;",
-                "Select Model",
+            label { style: "margin-top: 1em;",
+                "Select Model"
                 button {
                     style: "max-height: 2em; margin-left: 1em;",
                     onclick: refresh_model_list,
@@ -744,7 +737,7 @@ fn OpenRouterSettings(
     onchange: Callback<ProviderSettings, ()>,
 ) -> Element {
     let mut filter = use_signal(|| "".to_string());
-    let mut available_models = use_signal(|| Vec::<String>::new());
+    let mut available_models = use_signal(Vec::<String>::new);
 
     let handle_key_change = move |e: Event<FormData>| async move {
         let model = if let ProviderSettings::OpenRouter { model, .. } = ps() {
@@ -809,9 +802,8 @@ fn OpenRouterSettings(
             // input { value: api_url, oninput: handle_url_change }
             label { style: "margin-top: 1em;", "API Key" }
             input { value: api_key, oninput: handle_key_change }
-            label {
-                style: "margin-top: 1em;",
-                "Select Model",
+            label { style: "margin-top: 1em;",
+                "Select Model"
                 button {
                     style: "max-height: 2em; margin-left: 1em;",
                     onclick: refresh_model_list,

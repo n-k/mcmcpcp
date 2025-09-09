@@ -319,7 +319,7 @@ impl MCPServer for CreativeWriterMcpServer {
                     "required": []
                 }),
             },
-            
+
             // Character Development
             McpTool {
                 name: "create_character".into(),
@@ -384,7 +384,7 @@ impl MCPServer for CreativeWriterMcpServer {
                     "required": []
                 }),
             },
-            
+
             // World-building
             McpTool {
                 name: "create_world_element".into(),
@@ -421,7 +421,7 @@ impl MCPServer for CreativeWriterMcpServer {
                     }
                 }),
             },
-            
+
             // Plot & Narrative
             McpTool {
                 name: "add_plot_point".into(),
@@ -443,7 +443,7 @@ impl MCPServer for CreativeWriterMcpServer {
                     "required": []
                 }),
             },
-            
+
             // Writing Enhancement
             McpTool {
                 name: "analyze_chapter_content".into(),
@@ -466,7 +466,7 @@ impl MCPServer for CreativeWriterMcpServer {
                     }
                 }),
             },
-            
+
             // Notes & Organization
             McpTool {
                 name: "add_story_note".into(),
@@ -631,7 +631,7 @@ impl CreativeWriterMcpServer {
                     .map(|s| s.to_string())
                     .collect()
             })
-            .unwrap_or_else(Vec::new);
+            .unwrap_or_default();
         let position = args
             .get("position")
             .and_then(|v| v.as_u64())
@@ -1123,7 +1123,7 @@ impl CreativeWriterMcpServer {
                         .map(|s| s.to_string())
                         .collect()
                 })
-                .unwrap_or_else(Vec::new),
+                .unwrap_or_default(),
             backstory: args
                 .get("backstory")
                 .and_then(|v| v.as_str())
@@ -1343,7 +1343,7 @@ impl CreativeWriterMcpServer {
                     .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
                     .collect()
             })
-            .unwrap_or_else(HashMap::new);
+            .unwrap_or_default();
 
         let element = WorldElement {
             name: name.clone(),
@@ -1489,7 +1489,7 @@ impl CreativeWriterMcpServer {
         let chapter_count = self.story.chapters.len();
         let total_words: usize = self.story.chapters.iter().map(|c| c.word_count).sum();
 
-        analysis.push_str(&format!("**Structure Overview:**\n"));
+        analysis.push_str("**Structure Overview:**\n");
         analysis.push_str(&format!("- Chapters: {}\n", chapter_count));
         analysis.push_str(&format!("- Total Words: {}\n", total_words));
         analysis.push_str(&format!(
@@ -1502,7 +1502,7 @@ impl CreativeWriterMcpServer {
         ));
 
         // Plot point analysis
-        analysis.push_str(&format!("**Plot Development:**\n"));
+        analysis.push_str("**Plot Development:**\n");
         analysis.push_str(&format!(
             "- Major Plot Points: {}\n",
             self.story.plot_points.len()
@@ -1517,7 +1517,7 @@ impl CreativeWriterMcpServer {
         analysis.push('\n');
 
         // Character analysis
-        analysis.push_str(&format!("**Character Development:**\n"));
+        analysis.push_str("**Character Development:**\n");
         analysis.push_str(&format!(
             "- Total Characters: {}\n",
             self.story.characters.len()
@@ -1546,7 +1546,7 @@ impl CreativeWriterMcpServer {
         ));
 
         // World-building analysis
-        analysis.push_str(&format!("**World-building:**\n"));
+        analysis.push_str("**World-building:**\n");
         analysis.push_str(&format!(
             "- World Elements: {}\n",
             self.story.world_elements.len()
@@ -1600,7 +1600,7 @@ impl CreativeWriterMcpServer {
         let mut analysis = format!("# Chapter Analysis: {}\n\n", chapter.title);
 
         // Basic metrics
-        analysis.push_str(&format!("**Basic Metrics:**\n"));
+        analysis.push_str("**Basic Metrics:**\n");
         analysis.push_str(&format!("- Word Count: {}\n", chapter.word_count));
         analysis.push_str(&format!(
             "- Estimated Reading Time: {} minutes\n",

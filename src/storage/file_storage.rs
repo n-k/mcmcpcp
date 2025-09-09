@@ -55,10 +55,10 @@ impl FileStorage {
                 let mut n = n.to_lowercase();
                 if n.ends_with(".json") && n.len() > 5 {
                     let _ = n.split_off(n.len() - 5);
-                    if let Ok(i) = n.parse::<u32>() {
-                        if idx < i {
-                            idx = i;
-                        }
+                    if let Ok(i) = n.parse::<u32>()
+                        && idx < i
+                    {
+                        idx = i;
                     }
                 }
             }
@@ -113,17 +113,16 @@ impl super::Storage for FileStorage {
         let mut chats = Vec::new();
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
-            if path.is_file() {
-                if let Some(ext) = path.extension() {
-                    if ext == "json" {
-                        match tokio::fs::read_to_string(&path).await {
-                            Ok(content) => match serde_json::from_str::<Chat>(&content) {
-                                Ok(chat) => chats.push(chat),
-                                Err(e) => warn!("Failed to parse chat from {path:?}: {e}"),
-                            },
-                            Err(e) => warn!("Failed to read chat file {path:?}: {e}"),
-                        }
-                    }
+            if path.is_file()
+                && let Some(ext) = path.extension()
+                && ext == "json"
+            {
+                match tokio::fs::read_to_string(&path).await {
+                    Ok(content) => match serde_json::from_str::<Chat>(&content) {
+                        Ok(chat) => chats.push(chat),
+                        Err(e) => warn!("Failed to parse chat from {path:?}: {e}"),
+                    },
+                    Err(e) => warn!("Failed to read chat file {path:?}: {e}"),
                 }
             }
         }

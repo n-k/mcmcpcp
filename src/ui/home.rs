@@ -31,30 +31,21 @@ use crate::{
 #[component]
 pub fn ChatEl(id: u32) -> Element {
     rsx! {
-        Home {
-            id: Signal::new(Some(id)),
-            chat_type: Toolsets::Chat,
-        }
+        Home { id: Signal::new(Some(id)), chat_type: Toolsets::Chat }
     }
 }
 
 #[component]
 pub fn NewChat() -> Element {
     rsx! {
-        Home {
-            id: Signal::new(None),
-            chat_type: Toolsets::Chat,
-        }
+        Home { id: Signal::new(None), chat_type: Toolsets::Chat }
     }
 }
 
 #[component]
 pub fn NewStory() -> Element {
     rsx! {
-        Home {
-            id: Signal::new(None),
-            chat_type: Toolsets::Story,
-        }
+        Home { id: Signal::new(None), chat_type: Toolsets::Story }
     }
 }
 
@@ -78,7 +69,7 @@ pub fn Home(id: Signal<Option<u32>>, chat_type: Toolsets) -> Element {
         let ts = &*toolset.read();
         Chat {
             id: None,
-            chat_type: chat_type,
+            chat_type,
             messages: vec![Message::System {
                 content: ts.get_system_prompt(),
             }],
@@ -126,8 +117,8 @@ pub fn Home(id: Signal<Option<u32>>, chat_type: Toolsets) -> Element {
     });
     let settings = use_resource(move || async move {
         let settings_ctx = consume_context::<Signal<Option<AppSettings>>>();
-        let settings = settings_ctx.read().clone();
-        settings
+
+        settings_ctx.read().clone()
     });
     // Initialize LLM client from settings
     let client = use_resource(move || async move {
@@ -171,18 +162,15 @@ pub fn Home(id: Signal<Option<u32>>, chat_type: Toolsets) -> Element {
         let client_loaded = client().is_some();
         let model = model().flatten();
         let model_loaded = model.is_some();
-        let configured = client_loaded && model_loaded && settings.provider.is_configured();
-        configured
+
+        client_loaded && model_loaded && settings.provider.is_configured()
     });
 
     // Track if the system is currently processing a request
     let mut busy = use_signal(|| false);
 
     // Determine if the chat input should be disabled
-    let disabled = use_resource(move || async move {
-        let disabled = !is_configured().unwrap_or_else(|| false) || busy();
-        disabled
-    });
+    let disabled = use_resource(move || async move { !is_configured().unwrap_or(false) || busy() });
 
     // Current streaming message content (for real-time display)
     let mut streaming_msg: Signal<Option<String>> = use_signal(|| None);
@@ -269,16 +257,14 @@ pub fn Home(id: Signal<Option<u32>>, chat_type: Toolsets) -> Element {
 
     // Render the main chat interface
     rsx! {
-        div {
-            class: "content {chat_class}",
+        div { class: "content {chat_class}",
             div {
                 class: "chat {chat_class}",
                 style: "
                 display: flex;
                 flex-direction: column;
                 ",
-                div {
-                    style: "
+                div { style: "
                     flex-grow: 1;
                     overflow: auto;
                     ",
@@ -292,8 +278,7 @@ pub fn Home(id: Signal<Option<u32>>, chat_type: Toolsets) -> Element {
 
                     // Show tool count warning if too many tools have been executed
                     if tool_count_warning() {
-                        div {
-                            style: "
+                        div { style: "
                             background-color: #fff3cd;
                             border: 1px solid #ffeaa7;
                             border-radius: 4px;
@@ -301,8 +286,7 @@ pub fn Home(id: Signal<Option<u32>>, chat_type: Toolsets) -> Element {
                             margin: 1em 0;
                             ",
                             "10 tool calls have been made without user intervention."
-                            div {
-                                style: "margin-top: 0.5em;",
+                            div { style: "margin-top: 0.5em;",
                                 button {
                                     style: "margin-right: 0.5em;",
                                     onclick: move |_| async move {
@@ -328,8 +312,7 @@ pub fn Home(id: Signal<Option<u32>>, chat_type: Toolsets) -> Element {
 
                     // Show error message if there's an error
                     if let Some(error_msg) = error_state() {
-                        div {
-                            style: "
+                        div { style: "
                             background-color: #f8d7da;
                             border: 1px solid #f5c6cb;
                             border-radius: 4px;
@@ -337,12 +320,10 @@ pub fn Home(id: Signal<Option<u32>>, chat_type: Toolsets) -> Element {
                             margin: 1em 0;
                             color: #721c24;
                             ",
-                            div {
-                                style: "font-weight: bold; margin-bottom: 0.5em;",
+                            div { style: "font-weight: bold; margin-bottom: 0.5em;",
                                 "Error occurred:"
                             }
-                            div {
-                                style: "margin-bottom: 1em; font-family: monospace; white-space: pre-wrap;",
+                            div { style: "margin-bottom: 1em; font-family: monospace; white-space: pre-wrap;",
                                 "{error_msg}"
                             }
                             div {
@@ -369,13 +350,12 @@ pub fn Home(id: Signal<Option<u32>>, chat_type: Toolsets) -> Element {
                     }
                 }
                 // Fixed chat input area at the bottom
-                div {
-                    style: "
+                div { style: "
                     flex-grow: 0;
                     padding: 1.5em;
                     ",
                     ChatInput {
-                        disabled: disabled().unwrap_or_else(|| true),
+                        disabled: disabled().unwrap_or(true),
                         on_send: Callback::new(move |s: String| async move {
                             // Prevent multiple concurrent requests
                             {

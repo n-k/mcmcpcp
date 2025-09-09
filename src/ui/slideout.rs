@@ -8,13 +8,13 @@ pub struct SlideoutProps {
 
 #[component]
 pub fn Slideout(mut props: SlideoutProps) -> Element {
-    let transform = if props.open.read().clone() {
+    let transform = if *props.open.read() {
         "transform: translateX(0);"
     } else {
         "transform: translateX(100%);"
     };
 
-    let visibility = if props.open.read().clone() {
+    let visibility = if *props.open.read() {
         "visibility: visible; opacity: 1;"
     } else {
         "visibility: hidden; opacity: 0;"

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
-use dioxus::logger::tracing::{debug, warn};
+use dioxus::logger::tracing::warn;
 use serde_json::{Value, json};
 use tokio::sync::Mutex;
 
@@ -25,8 +25,7 @@ pub struct _McpServer {
 #[async_trait::async_trait]
 impl MCPServer for _McpServer {
     async fn list_tools(&self) -> Vec<McpTool> {
-        let tools = self.tool_cache.lock().await.clone();
-        tools
+        self.tool_cache.lock().await.clone()
     }
 
     async fn rpc(&mut self, method: &str, params: Value) -> anyhow::Result<serde_json::Value> {
@@ -119,12 +118,12 @@ impl _McpServer {
                                 RpcMessage::Err(r) => r.id.clone(),
                             }
                             .clone();
-                            let id = id.as_str().unwrap_or_else(|| "");
+                            let id = id.as_str().unwrap_or("");
 
-                            if let Some(tx) = pending.lock().await.remove(id) {
-                                if let Err(_e) = tx.send(msg) {
-                                    warn!("Error sending to oneshot!");
-                                }
+                            if let Some(tx) = pending.lock().await.remove(id)
+                                && let Err(_e) = tx.send(msg)
+                            {
+                                warn!("Error sending to oneshot!");
                             }
                         } else {
                             // Non-JSON noise from server; ignore or log

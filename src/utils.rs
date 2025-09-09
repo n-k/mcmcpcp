@@ -79,24 +79,14 @@ pub async fn call_tools(
 
         // Parse the tool name to extract server ID and tool name
         // Format is "server_id/tool_name"
-        let parts: Vec<_> = f
-            .name
-            .as_ref()
-            .map(|s| s.as_str())
-            .unwrap_or_else(|| "")
-            .split("--")
-            .collect();
+        let parts: Vec<_> = f.name.as_deref().unwrap_or("").split("--").collect();
 
         if parts.len() == 2 {
             let server_id = parts[0];
             let tool_name = parts[1];
 
             // Parse the function arguments from JSON string
-            let params_str = f
-                .arguments
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or_else(|| "{}");
+            let params_str = f.arguments.as_deref().unwrap_or("{}");
             let arguments: Value = serde_json::from_str(params_str)?;
 
             // Log the tool call for debugging
@@ -110,7 +100,7 @@ pub async fn call_tools(
                 .content
                 .into_iter()
                 .filter(|c| c.r#type == "text") // Only process text content
-                .map(|c| c.text.unwrap_or_else(|| "".to_string()))
+                .map(|c| c.text.unwrap_or_default())
                 .collect();
             let text = messages.join("\n");
 
@@ -154,28 +144,27 @@ pub fn extract_wierd_tool_calls(text: &str) -> anyhow::Result<Option<ToolCallDel
         }));
     }
 
-    if let Ok(Value::Object(m)) = serde_json::from_str(text) {
-        if let Some(name) = m.get("name").map(|x| x.as_str()).flatten() {
-            if let Some(args) = m.get("arguments") {
-                let arguments = if let Some(s) = args.as_str() {
-                    Some(s.to_string())
-                } else if let Some(m) = args.as_object() {
-                    let args_str = serde_json::to_string(&Value::Object(m.clone()))?;
-                    Some(args_str)
-                } else {
-                    None
-                };
+    if let Ok(Value::Object(m)) = serde_json::from_str(text)
+        && let Some(name) = m.get("name").and_then(|x| x.as_str())
+        && let Some(args) = m.get("arguments")
+    {
+        let arguments = if let Some(s) = args.as_str() {
+            Some(s.to_string())
+        } else if let Some(m) = args.as_object() {
+            let args_str = serde_json::to_string(&Value::Object(m.clone()))?;
+            Some(args_str)
+        } else {
+            None
+        };
 
-                return Ok(Some(ToolCallDelta {
-                    id: Some("...".into()),
-                    kind: Some("function".into()),
-                    function: Some(FunctionDelta {
-                        name: Some(name.to_string()),
-                        arguments,
-                    }),
-                }));
-            }
-        }
+        return Ok(Some(ToolCallDelta {
+            id: Some("...".into()),
+            kind: Some("function".into()),
+            function: Some(FunctionDelta {
+                name: Some(name.to_string()),
+                arguments,
+            }),
+        }));
     }
 
     Ok(None)
@@ -276,12 +265,12 @@ where
             let Some(ch) = e.choices.first() else { break };
 
             // Handle text content (assistant response)
-            if let Some(t) = &ch.delta.content {
-                if !t.is_empty() {
-                    text = format!("{}{}", &text, t);
-                    // Update streaming display in real-time
-                    streaming_msg.set(Some(text.clone()));
-                }
+            if let Some(t) = &ch.delta.content
+                && !t.is_empty()
+            {
+                text = format!("{}{}", &text, t);
+                // Update streaming display in real-time
+                streaming_msg.set(Some(text.clone()));
             }
 
             // Handle tool calls
@@ -295,12 +284,12 @@ where
                             let existing = c
                                 .clone()
                                 .function
-                                .map(|fd| fd.arguments.clone().unwrap_or_else(|| "".to_string()))
-                                .unwrap_or_else(|| "".to_string());
+                                .map(|fd| fd.arguments.clone().unwrap_or_default())
+                                .unwrap_or_default();
                             let delta = t
                                 .clone()
                                 .function
-                                .map(|fd| fd.arguments.clone().unwrap_or_else(|| "".to_string()))
+                                .map(|fd| fd.arguments.clone().unwrap_or_default())
                                 .unwrap_or_else(|| "".to_string());
                             c.function
                                 .as_mut()

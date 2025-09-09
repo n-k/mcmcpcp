@@ -5,7 +5,6 @@
 //! interacting with various MCP servers. It includes both external MCP servers
 //! and built-in functionality like web fetching.
 
-use dioxus::logger::tracing::warn;
 use serde_json::{Value, json};
 use std::{collections::HashMap, time::Duration};
 use tokio::sync::RwLock;
@@ -52,6 +51,12 @@ pub struct MCPHost {
     /// Timeout for server startup and initialization
     #[allow(unused)]
     pub startup_timeout: Duration,
+}
+
+impl Default for MCPHost {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MCPHost {

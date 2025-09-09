@@ -65,7 +65,7 @@ impl LlmClient {
 
         // Check for HTTP error status and provide detailed error information
         if !res.status().is_success() {
-            let status = res.status().clone();
+            let status = res.status();
             let body = res.text().await?;
             bail!("Request failed: {} - {}", status, body);
         }
@@ -112,7 +112,7 @@ impl LlmClient {
 
         // Check for HTTP error status
         if !res.status().is_success() {
-            let status = res.status().clone();
+            let status = res.status();
             let body = res.text().await?;
             bail!("Request failed: {} - {}", status, body);
         }
@@ -148,11 +148,11 @@ impl LlmClient {
                     }
 
                     // Parse and send the stream event
-                    if let Ok(event) = serde_json::from_str::<StreamEvent>(data) {
-                        if let Err(e) = tx.send(event).await {
-                            warn!("Could not send response event: {e:?}");
-                            return;
-                        }
+                    if let Ok(event) = serde_json::from_str::<StreamEvent>(data)
+                        && let Err(e) = tx.send(event).await
+                    {
+                        warn!("Could not send response event: {e:?}");
+                        return;
                     }
                 }
             }
