@@ -25,6 +25,7 @@ use crate::{
     ui::{
         chat_input::ChatInput, // Component for message input
         message::MessageEl,    // Component for displaying individual messages
+        message_group::{MessageGroupEl, group_messages}, // Component for grouped messages
     },
 };
 
@@ -243,6 +244,52 @@ pub fn Home(id: Signal<Option<u32>>, chat_type: Toolsets) -> Element {
         }
     };
 
+    // Handle deletion of message groups
+    let delete_group = move |group_id: String| async move {
+        chat.with_mut(|c| {
+            // Find the group and remove all its messages
+            let groups = group_messages(&c.messages);
+            
+            // Find the group to delete
+            if let Some(target_group) = groups.iter().find(|g| g.group_id == group_id) {
+                let mut new_messages = Vec::new();
+                
+                // Keep all messages except those in the target group
+                for message in &c.messages {
+                    let mut should_keep = true;
+                    
+                    // Check if this is the assistant message from the target group
+                    if let Message::Assistant { content, tool_calls } = message {
+                        if let Message::Assistant { content: target_content, tool_calls: target_tool_calls } = &target_group.assistant_message {
+                            if content == target_content && tool_calls == target_tool_calls {
+                                should_keep = false;
+                            }
+                        }
+                    }
+                    
+                    // Check if this is a tool message from the target group
+                    if let Message::Tool { .. } = message {
+                        for tool_msg in &target_group.tool_messages {
+                            if tool_msg == message {
+                                should_keep = false;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if should_keep {
+                        new_messages.push(message.clone());
+                    }
+                }
+                
+                c.messages = new_messages;
+            }
+        });
+        
+        // Save the updated chat
+        let _ = save_chat().await;
+    };
+
     // Renders the currently streaming message if one exists.
     //
     // Shows real-time LLM responses as they're being generated,
@@ -268,9 +315,72 @@ pub fn Home(id: Signal<Option<u32>>, chat_type: Toolsets) -> Element {
                     flex-grow: 1;
                     overflow: auto;
                     ",
-                    // Render all messages in the conversation
-                    for c in chat.read().messages.iter() {
-                        MessageEl { msg: (*c).clone() }
+                    // Group messages and render them
+                    {
+                        let messages = &chat.read().messages;
+                        let groups = group_messages(messages);
+                        let mut rendered_messages = Vec::new();
+                        
+                        for message in messages {
+                            match message {
+                                Message::System { .. } | Message::User { .. } => {
+                                    // Render system and user messages normally
+                                    rendered_messages.push(rsx! {
+                                        MessageEl { msg: message.clone() }
+                                    });
+                                }
+                                Message::Assistant { .. } => {
+                                    // Find the group this assistant message belongs to
+                                    if let Some(group) = groups.iter().find(|g| {
+                                        if let Message::Assistant { content: group_content, tool_calls: group_tool_calls } = &g.assistant_message {
+                                            if let Message::Assistant { content: msg_content, tool_calls: msg_tool_calls } = message {
+                                                group_content == msg_content && group_tool_calls == msg_tool_calls
+                                            } else {
+                                                false
+                                            }
+                                        } else {
+                                            false
+                                        }
+                                    }) {
+                                        // Render as a grouped message
+                                        let group_clone = group.clone();
+                                        rendered_messages.push(rsx! {
+                                            MessageGroupEl {
+                                                group: group_clone,
+                                                show_delete: true,
+                                                on_delete: EventHandler::new(move |group_id: String| async move {
+                                                    delete_group(group_id).await;
+                                                })
+                                            }
+                                        });
+                                    } else {
+                                        // Fallback to normal rendering if group not found
+                                        rendered_messages.push(rsx! {
+                                            MessageEl { msg: message.clone() }
+                                        });
+                                    }
+                                }
+                                Message::Tool { .. } => {
+                                    // Tool messages are handled as part of groups, skip individual rendering
+                                    // unless they're orphaned (not part of any group)
+                                    let is_orphaned = !groups.iter().any(|g| {
+                                        g.tool_messages.iter().any(|tool_msg| tool_msg == message)
+                                    });
+                                    
+                                    if is_orphaned {
+                                        rendered_messages.push(rsx! {
+                                            MessageEl { msg: message.clone() }
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        
+                        rsx! {
+                            for element in rendered_messages {
+                                {element}
+                            }
+                        }
                     }
 
                     // Show streaming message if one is being generated

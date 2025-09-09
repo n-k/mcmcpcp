@@ -12,6 +12,7 @@ futures = "0.3"
 async-trait = "0.1"
 serde = {version = "1" , features=["derive"]}
 serde_json = "1"
+uuid = { version = "1.0", features = ["v4"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream"] }
 percent-encoding = "2.3"
 pulldown-cmark = { version = "0.13", default-features = false }

@@ -10,5 +10,6 @@ mod collapsible; // Collapsible/expandable content component
 pub mod home; // Main chat interface (public for routing)
 pub mod mcp_tools;
 mod message; // Message display component
+pub mod message_group; // Message group component for grouped assistant/tool messages
 pub mod settings; // Settings configuration page (public for routing)
 pub mod slideout; // MCP tools display component
