@@ -39,6 +39,14 @@ pub struct ServerSpec {
     /// Environment variables to set for the server process
     #[serde(default)]
     pub env: std::collections::HashMap<String, String>,
+    /// Whether this server is enabled (defaults to true for backward compatibility)
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+}
+
+/// Default value for the enabled field (true for backward compatibility)
+fn default_enabled() -> bool {
+    true
 }
 
 /// Represents a tool provided by an MCP server.

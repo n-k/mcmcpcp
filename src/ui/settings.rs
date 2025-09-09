@@ -260,6 +260,14 @@ fn ServerItem(
     on_cancel: Callback<(), ()>,
     on_delete: Callback<usize, ()>,
 ) -> Element {
+    let on_toggle = {
+        let server = server.clone();
+        move |_| {
+            let mut updated_server = server.clone();
+            updated_server.enabled = !updated_server.enabled;
+            on_save((index, updated_server));
+        }
+    };
     if is_editing {
         rsx! {
             ServerForm {
@@ -279,17 +287,36 @@ fn ServerItem(
             .collect::<Vec<_>>()
             .join(", ");
 
+        let status_color = if server.enabled { "#28a745" } else { "#6c757d" };
+        let status_text = if server.enabled { "Enabled" } else { "Disabled" };
+        let toggle_bg = if server.enabled { "#28a745" } else { "#ccc" };
+        let toggle_transform = if server.enabled { "translateX(20px)" } else { "translateX(0)" };
+
         rsx! {
-            div { style: "
+            div { style: format!("
                     border: 1px solid #ddd;
                     border-radius: 4px;
                     padding: 1rem;
                     margin-bottom: 0.5rem;
                     background: #f9f9f9;
-                ",
+                    opacity: {};
+                ", if server.enabled { "1" } else { "0.7" }),
                 div { style: "display: flex; justify-content: space-between; align-items: flex-start;",
                     div { style: "flex-grow: 1;",
-                        div { style: "font-weight: bold; margin-bottom: 0.25rem;", "{server.id}" }
+                        div { style: "display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;",
+                            div { style: "font-weight: bold;", "{server.id}" }
+                            div { 
+                                style: "
+                                    font-size: 0.7rem;
+                                    padding: 0.125rem 0.375rem;
+                                    border-radius: 10px;
+                                    background: {status_color};
+                                    color: white;
+                                    font-weight: bold;
+                                ",
+                                "{status_text}"
+                            }
+                        }
                         div { style: "font-family: monospace; font-size: 0.9em; color: #666; margin-bottom: 0.25rem;",
                             "{server.cmd}"
                         }
@@ -305,40 +332,82 @@ fn ServerItem(
                         }
                     }
                     div { style: "
-                        position: relative;
-                        left: -6em;
                         display: flex;
+                        flex-direction: column;
+                        align-items: flex-end;
                         gap: 0.5rem;
                         ",
-                        button {
+                        // Toggle switch
+                        div { 
                             style: "
-                                background: #28a745;
-                                color: white;
-                                border: none;
-                                padding: 0.25rem 0.5rem;
-                                border-radius: 3px;
-                                cursor: pointer;
-                                font-size: 0.8rem;
+                                display: flex;
+                                align-items: center;
+                                gap: 0.5rem;
+                                margin-bottom: 0.5rem;
                             ",
-                            onclick: move |_| {
-                                on_edit(index);
-                            },
-                            "Edit"
+                            span { style: "font-size: 0.8rem; color: #666;", "Enable:" }
+                            div {
+                                style: "
+                                    width: 44px;
+                                    height: 24px;
+                                    background: {toggle_bg};
+                                    border-radius: 12px;
+                                    position: relative;
+                                    cursor: pointer;
+                                    transition: background 0.3s;
+                                ",
+                                onclick: on_toggle,
+                                div {
+                                    style: "
+                                        width: 20px;
+                                        height: 20px;
+                                        background: white;
+                                        border-radius: 50%;
+                                        position: absolute;
+                                        top: 2px;
+                                        left: 2px;
+                                        transform: {toggle_transform};
+                                        transition: transform 0.3s;
+                                        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                                    "
+                                }
+                            }
                         }
-                        button {
-                            style: "
-                                background: #dc3545;
-                                color: white;
-                                border: none;
-                                padding: 0.25rem 0.5rem;
-                                border-radius: 3px;
-                                cursor: pointer;
-                                font-size: 0.8rem;
+                        // Action buttons
+                        div { style: "
+                            display: flex;
+                            gap: 0.5rem;
                             ",
-                            onclick: move |_| {
-                                on_delete(index);
-                            },
-                            "Delete"
+                            button {
+                                style: "
+                                    background: #28a745;
+                                    color: white;
+                                    border: none;
+                                    padding: 0.25rem 0.5rem;
+                                    border-radius: 3px;
+                                    cursor: pointer;
+                                    font-size: 0.8rem;
+                                ",
+                                onclick: move |_| {
+                                    on_edit(index);
+                                },
+                                "Edit"
+                            }
+                            button {
+                                style: "
+                                    background: #dc3545;
+                                    color: white;
+                                    border: none;
+                                    padding: 0.25rem 0.5rem;
+                                    border-radius: 3px;
+                                    cursor: pointer;
+                                    font-size: 0.8rem;
+                                ",
+                                onclick: move |_| {
+                                    on_delete(index);
+                                },
+                                "Delete"
+                            }
                         }
                     }
                 }
@@ -384,6 +453,7 @@ fn ServerForm(
         env_vars.set(current_env);
     };
 
+    let server_enabled = server.as_ref().map(|s| s.enabled).unwrap_or(true);
     let handle_save = move |_| async move {
         let id_val = id().trim().to_string();
         let cmd_val = cmd().trim().to_string();
@@ -405,6 +475,7 @@ fn ServerForm(
             cmd: cmd_val,
             args: args_vec,
             env: env_vars(),
+            enabled: server_enabled,
         };
 
         on_save(server_spec);

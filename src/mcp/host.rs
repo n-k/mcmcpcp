@@ -119,8 +119,13 @@ impl MCPHost {
     /// # Returns
     /// Ok(()) if the servers was successfully synced, or an error if spawning failed
     pub async fn sync_servers(&self, specs: Vec<ServerSpec>) -> anyhow::Result<()> {
-        // add any specs which are not running
+        // add any specs which are enabled and not running
         for spec in &specs {
+            // Skip disabled servers
+            if !spec.enabled {
+                continue;
+            }
+            
             let exists = { self.servers.read().await.contains_key(&spec.id) };
             if exists {
                 continue;
@@ -132,16 +137,23 @@ impl MCPHost {
                 .await
                 .insert(spec.id.clone(), Box::new(server));
         }
-        let mut spec_ids: HashSet<String> = specs.iter().map(|s| s.id.clone()).collect();
-        spec_ids.insert("builtin".into());
+        
+        // Create set of enabled server IDs that should be running
+        let mut enabled_spec_ids: HashSet<String> = specs.iter()
+            .filter(|s| s.enabled)
+            .map(|s| s.id.clone())
+            .collect();
+        enabled_spec_ids.insert("builtin".into());
 
         let ids: Vec<String> = {
             self.servers.read().await.keys()
                 .map(|k| k.clone())
                 .collect()
         };
+        
+        // Remove servers that are running but should not be (disabled or removed from config)
         for id in &ids {
-            if !spec_ids.contains(id) {
+            if !enabled_spec_ids.contains(id) {
                 let _ = self.servers.write().await.remove(id);
             }
         }
