@@ -39,6 +39,10 @@
                 }
             },
             "args": [],
+            "env": {
+                "GTK_PATH": "",
+                "GIO_MODULE_DIR": ""
+            },
             "cwd": "${workspaceFolder}"
         },
         {

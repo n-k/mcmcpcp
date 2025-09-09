@@ -36,21 +36,27 @@ impl FileStorage {
     }
 
     async fn get_next_chat_id(&self) -> Result<u32> {
+        warn!("next id: 1");
         self.ensure_dir().await?;
         let chats_dir = self.chats_path();
+        warn!("next id: 2");
         if !chats_dir.exists() {
             tokio::fs::create_dir_all(&chats_dir).await?;
         }
+        warn!("next id: 3");
         let mut entries = tokio::fs::read_dir(&chats_dir).await?;
         let mut idx: u32 = 0;
+        warn!("next id: 4");
         while let Some(entry) = entries.next_entry().await? {
+            warn!("next id: entry: {entry:?}");
             let path = entry.path();
             if path.is_file() {
                 let Some(n) = path.file_name() else { continue; };
                 let Some(n) = n.to_str() else { continue; };
                 let mut n = n.to_lowercase();
-                if n.ends_with("json") {
-                    let _ = n.split_off(n.len() - 4);
+                if n.ends_with(".json") && n.len() > 5 {
+                    let _ = n.split_off(n.len() - 5);
+                    warn!("{n}");
                     if let Ok(i) = n.parse::<u32>() {
                         if idx < i {
                             idx = i;
@@ -70,7 +76,6 @@ impl super::Storage for FileStorage {
         let json = serde_json::to_string_pretty(settings)?;
         let path = self.settings_path();
         fs::write(&path, json).await?;
-        warn!("Saved settings to {path:?}");
         Ok(())
     }
 
@@ -87,16 +92,24 @@ impl super::Storage for FileStorage {
     }
 
     async fn save_chat(&self, chat: &Chat) -> anyhow::Result<u32> {
+        warn!("FS: saving chat...{:?}", &chat.id);
         let file_idx = if let Some(id) = &chat.id {
             *id
         } else {
+            warn!("FS: getting next id...");
             self.get_next_chat_id().await?
         };
         let file_name = format!("{file_idx}.json");
+        warn!("FS: saving {file_name}...");
         let path = self.chats_path().join(file_name);
-        let json = serde_json::to_string_pretty(chat)?;
-        fs::write(&path, json).await?;
-        warn!("Saved chat to {path:?}");
+        let mut c = chat.clone();
+        c.id = Some(file_idx);
+        let json = serde_json::to_string_pretty(&c)?;
+        warn!("FS: saving 1 @ {path:?}");
+        let e = fs::write(&path, json).await;
+        warn!("FS: saving 2: {e:?}");
+        let _ = e?;
+        warn!("FS: saving 3");
         Ok(file_idx)
     }
     
@@ -156,7 +169,6 @@ impl super::Storage for FileStorage {
         let path = self.chats_path().join(file_name);
         if path.exists() {
             tokio::fs::remove_file(&path).await?;
-            warn!("Deleted chat {path:?}");
         }
         Ok(())
     }

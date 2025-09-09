@@ -53,49 +53,84 @@ impl Toolset for StoryWriter {
     }
 
     async fn get_state(&self) -> Value {
-        let mut map = self.host.servers.write().await;
-        let Some(server) = map.get_mut("creative_writer") else {
-            return json!({"story": "", "characters": [], "chapters": [], "world_elements": []});
-        };
-        let v = server
-            .rpc(
-                "tools/call",
-                json!({
-                    "name": "export_story",
-                    "arguments": {
-                        "format": "structured",
+        let tr = self.host.tool_call(
+            "creative_writer", 
+            "export_story", 
+            json!({
+                "format": "structured",
+            })
+        ).await
+        .unwrap_or_else(|e| {
+            warn!("Error getting state from MCP server: {e:?}");
+            ToolResult { content: vec![
+                    ToolResultContent {
+                        r#type: "text".into(),
+                        text: Some("".into()),
+                        ..Default::default()
                     },
-                })
-            ).await
-            .unwrap_or_else(|e| {
-                warn!("Error getting state from MCP server: {e:?}");
-                json!({})
-            });
-        let tr: ToolResult = serde_json::from_value(v).unwrap();
+                ], 
+                is_error: None 
+            }
+        });
+        // let v = server
+        //     .rpc(
+        //         "tools/call",
+        //         json!({
+        //             "name": "export_story",
+        //             "arguments": {
+        //                 "format": "structured",
+        //             },
+        //         })
+        //     ).await
+        //     .unwrap_or_else(|e| {
+        //         warn!("Error getting state from MCP server: {e:?}");
+        //         json!({})
+        //     });
+        // let tr: ToolResult = serde_json::from_value(v).unwrap();
         let s = tr.content[0].text.clone().unwrap();
         serde_json::from_str(&s).unwrap()
     }
 
     async fn get_markdown_repr(&self) -> Option<String> {
-        let mut map = self.host.servers.write().await;
-        let Some(server) = map.get_mut("creative_writer") else {
-            return None;
-        };
-        let v = server
-            .rpc(
-                "tools/call",
+        // let mut map = self.host.servers.write().await;
+        // let Some(server) = map.get_mut("creative_writer") else {
+        //     return None;
+        // };
+        // let v = server
+        //     .rpc(
+        //         "tools/call",
+        //         json!({
+        //             "name": "export_story",
+        //             "arguments": {
+        //                 "format": "markdown",
+        //             },
+        //         })
+        //     ).await
+        //     .unwrap_or_else(|e| {
+        //         warn!("Error getting state from MCP server: {e:?}");
+        //         json!({})
+        //     });
+        let tr = self.host
+            .tool_call(
+                "creative_writer", 
+                "export_story", 
                 json!({
-                    "name": "export_story",
-                    "arguments": {
-                        "format": "markdown",
-                    },
+                    "format": "markdown",
                 })
             ).await
             .unwrap_or_else(|e| {
                 warn!("Error getting state from MCP server: {e:?}");
-                json!({})
+                ToolResult { content: vec![
+                        ToolResultContent {
+                            r#type: "text".into(),
+                            text: Some("".into()),
+                            ..Default::default()
+                        },
+                    ], 
+                    is_error: None 
+                }
             });
-        let tr: ToolResult = serde_json::from_value(v).unwrap();
+        // let tr: ToolResult = serde_json::from_value(v).unwrap();
         let s = tr.content[0].text.clone().unwrap();
         Some(s)
     }

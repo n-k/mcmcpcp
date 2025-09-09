@@ -5,6 +5,7 @@
 //! interacting with various MCP servers. It includes both external MCP servers
 //! and built-in functionality like web fetching.
 
+use dioxus::logger::tracing::warn;
 use serde_json::{Value, json};
 use std::{collections::HashMap, time::Duration};
 use tokio::sync::RwLock;
@@ -45,7 +46,7 @@ pub trait MCPServer: Send + Sync {
 /// appropriate server. It provides timeout configuration for server operations.
 pub struct MCPHost {
     /// Map of server ID to server implementation, protected by RwLock for concurrent access
-    pub servers: RwLock<HashMap<String, Box<dyn MCPServer>>>,
+    servers: RwLock<HashMap<String, Box<dyn MCPServer>>>,
     /// Timeout for individual RPC requests to servers
     #[allow(unused)]
     pub request_timeout: Duration,
@@ -61,8 +62,8 @@ impl MCPHost {
     /// A new Host instance ready to manage MCP servers
     pub fn new() -> Self {
         Self::new_with_timeouts(
-            Duration::from_secs(10), 
-            Duration::from_secs(60),
+            Duration::from_secs(2), 
+            Duration::from_secs(2),
         )
     }
 
@@ -109,6 +110,27 @@ impl MCPHost {
         }
     }
 
+    /// Syncs this host's servers with the list of servers in settings.
+    /// 
+    /// # Arguments
+    /// * `specs` - Server specifications including command, arguments, and ID
+    /// 
+    /// # Returns
+    /// Ok(()) if the servers was successfully synced, or an error if spawning failed
+    pub async fn sync_servers(&self, specs: Vec<ServerSpec>) -> anyhow::Result<()> {
+        // add any specs which are not running
+        for spec in &specs {
+            let exists = {
+                self.servers.read().await.contains_key(&spec.id)
+            };
+            if exists { continue; }
+            let server =
+                _McpServer::spawn(spec.clone(), self.request_timeout, self.startup_timeout).await?;
+            self.servers.write().await.insert(spec.id.clone(), Box::new(server));
+        }
+        Ok(())
+    }
+
     /// Adds an external MCP server to the host.
     /// 
     /// Spawns a new MCP server process based on the provided specification
@@ -137,9 +159,9 @@ impl MCPHost {
     /// Vector of tool descriptors with server ID and tool information
     pub async fn list_tools(&self) -> Vec<ToolDescriptor> {
         let mut res = vec![];
-        
+        let servers = self.servers.read().await;
         // Query each server for its tools
-        for (id, s) in self.servers.read().await.iter() {
+        for (id, s) in servers.iter() {
             let tools = s.list_tools().await;
             let ts: Vec<ToolDescriptor> = tools
                 .into_iter()
@@ -199,6 +221,7 @@ impl MCPHost {
         
         // Execute the RPC call and parse the result
         let result = self.invoke(server_id, "tools/call", params).await?;
+        warn!("Tool result: {result:?}");
         serde_json::from_value(result).map_err(|e| e.into())
     }
 }

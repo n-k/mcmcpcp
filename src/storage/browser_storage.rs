@@ -122,7 +122,6 @@ impl Storage for IdbStorage {
         let doc = chat.serialize(&Serializer::json_compatible()).unwrap();
         // warn!("serialized: {doc:?}");
         let put_res = if chat.id.is_some() {
-            warn!("putting...");
             store
                 .put(
                     &doc,
@@ -132,7 +131,6 @@ impl Storage for IdbStorage {
                 .await
                 .map_err(|e| anyhow!("{e:?}"))?
         } else {
-            warn!("adding...");
             store
                 .add(
                     &doc,
@@ -142,7 +140,6 @@ impl Storage for IdbStorage {
                 .await
                 .map_err(|e| anyhow!("{e:?}"))?
         };
-        warn!("put op: {put_res:?}");
         transaction.commit()
             .map_err(|e| anyhow!("{e:?}"))?
             .await

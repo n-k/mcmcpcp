@@ -18,16 +18,17 @@ pulldown-cmark = { version = "0.13", default-features = false }
 html2md = "0.2"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-dioxus-native = { version = "0.7.0-rc.0" }
-tokio = { version = "1", default-features = false, features = ["sync", "rt", "macros", "process"] }
+# dioxus-native = { version = "0.7.0-rc.0" }
+tokio = { version = "1", default-features = false, features = ["full"] }
 directories-next = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen-futures = "0.4"
+wasm-bindgen-futures = "0.4.51"
 gloo-net = "0.6"
 idb = "0.6"
 serde-wasm-bindgen = "0.6"
-js-sys = "0.3"
+js-sys = "0.3.78"
 
 [features]
 default = ["desktop"]

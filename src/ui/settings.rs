@@ -317,7 +317,13 @@ fn ServerItem(
                             }
                         }
                     }
-                    div { style: "display: flex; gap: 0.5rem;",
+                    div { 
+                        style: "
+                        position: relative;
+                        left: -6em;
+                        display: flex;
+                        gap: 0.5rem;
+                        ",
                         button {
                             style: "
                                 background: #28a745;

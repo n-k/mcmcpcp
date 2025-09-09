@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, bail};
+use dioxus::logger::tracing::warn;
 use html2md::{parse_html_custom, TagHandler, TagHandlerFactory};
 use serde_json::{json, Value};
 
@@ -56,6 +57,7 @@ impl MCPServer for FetchMcpServer {
     /// Currently only supports the "tools/call" method with the "fetch" tool.
     /// The fetch tool retrieves content from the specified URL and returns it as text.
     async fn rpc(&mut self, method: &str, params: Value) -> anyhow::Result<serde_json::Value> {
+        warn!("Calling {method} / {params:?}");
         // Only support tool calls for this built-in server
         if method != "tools/call" {
             bail!("Error: unknown RPC method {method}");
@@ -81,10 +83,12 @@ impl MCPServer for FetchMcpServer {
             
         // Execute the fetch if URL is provided
         if let Some(Value::String(url)) = params.get("url") {
+            warn!("fetching {url} ...");
             let text = match _fetch(url.to_string()).await {
                 Ok(s) => s,
                 Err(e) => format!("Fetch error: {e:?}"),
             };
+            warn!("fetch result: {text}");
 
             let text = if name == "fetch" {
                 let mut handlers: HashMap<String, Box<dyn TagHandlerFactory>> = HashMap::new();
@@ -99,6 +103,8 @@ impl MCPServer for FetchMcpServer {
             } else {
                 text
             };
+
+            warn!("fetch result converted: {text}");
             
             // Return the result in MCP tool result format
             return Ok(serde_json::to_value(ToolResult {
@@ -187,13 +193,14 @@ async fn _fetch(url: String) -> anyhow::Result<String> {
 /// The fetched content as a string, or an error if the fetch fails
 #[cfg(not(target_arch = "wasm32"))]
 async fn _fetch(url: String) -> anyhow::Result<String> {
-    reqwest::Client::new()
-        .get(&url)
-        .send()
-        .await?
-        .text()
-        .await
-        .map_err(|e| anyhow!("{e:?}"))
+    anyhow::Ok("This URL is currently not available".to_string())
+    // reqwest::Client::new()
+    //     .get(&url)
+    //     .send()
+    //     .await?
+    //     .text()
+    //     .await
+    //     .map_err(|e| anyhow!("{e:?}"))
 }
 
 struct CustomFactory;

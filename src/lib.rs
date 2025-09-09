@@ -85,45 +85,12 @@ pub fn App() -> Element {
     });
     let _ = use_resource(move || async move {
         let st = settings();
-        warn!("resource reloading: {st:?}");
         // sync MCP servers with settings
         let host = consume_context::<Arc<MCPHost>>();
-        let Some(settings) = st else {
-            // clear any mcp servers in host
-            let mut wl = host.servers.write().await;
-            let keys: Vec<String> = wl.keys()
-                .map(|k| k.clone())
-                .collect();
-            for k in keys {
-                if k != "builtin" {
-                    warn!("removed {k}");
-                    wl.remove(&k);
-                } 
-            }
-            return anyhow::Ok(()) 
-        };
-        // now we will retain only servers in settings, and add any which are not there
-        let servers = settings.mcp_servers.unwrap_or_else(|| vec![]);
-        {
-            let mut wl = host.servers.write().await;
-            let keys: Vec<String> = wl.keys()
-                .map(|k| k.clone())
-                .collect();
-            for k in keys {
-                let server = servers.iter().find(|s| s.id == k);
-                if k != "builtin" && server.is_none() {
-                    warn!("removed {k} as it is not in specs list");
-                    wl.remove(&k);
-                }
-            }
-        }
-        // now iterate over servers and add if any are not present
-        let wl = host.servers.read().await;
-        for ss in servers {
-            if !wl.contains_key(&ss.id) {
-                host.add_server(ss).await?;
-            }
-        }
+        let specs = st.map(|st| st.mcp_servers)
+            .flatten()
+            .unwrap_or_default();
+        host.sync_servers(specs).await?;
 
         anyhow::Ok(())
     });

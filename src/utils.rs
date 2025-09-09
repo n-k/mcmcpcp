@@ -73,9 +73,7 @@ pub async fn call_tools(
     
     // Process each tool call from the LLM
     for tc in tool_calls.into_iter() {
-        warn!("> Calling {tc:#?}");
         let Some(f) = tc.function.as_ref() else {
-            warn!("no function");
             continue; // Skip tool calls without function information
         };
         
@@ -89,8 +87,6 @@ pub async fn call_tools(
             .split("--")
             .collect();
 
-        warn!("function parts: {parts:?}");
-            
         if parts.len() == 2 {
             let server_id = parts[0];
             let tool_name = parts[1];
@@ -103,14 +99,13 @@ pub async fn call_tools(
                 .unwrap_or_else(|| "{}");
             let arguments: Value = serde_json::from_str(params_str)?;
 
-            warn!("arguments: {arguments:?}");
-
             // Log the tool call for debugging
             warn!("Calling {server_id}/{tool_name}({arguments:?})");
             
             // Execute the tool call on the MCP server
-            let result = host.tool_call(server_id, tool_name, arguments).await?;
-            warn!("result: {result:?}");
+            let result = host.tool_call(server_id, tool_name, arguments).await;
+            warn!("{result:?}");
+            let result = result?;
             // Convert tool result to text messages
             // Filter for text content and combine into a single message
             let messages: Vec<String> = result
@@ -207,6 +202,7 @@ pub async fn save_chat_to_storage(
     id: Signal<Option<u32>>,
     nav: &Navigator,
 ) -> anyhow::Result<()> {
+    warn!("saving chat...");
     let storage = match get_storage().await {
         Ok(s) => Some(s),
         Err(e) => {
@@ -214,21 +210,26 @@ pub async fn save_chat_to_storage(
             None
         }
     };
-    
+    warn!("1");
+    let mut ch = chat.cloned();
     let value = toolset.get_state().await;
-    chat.with_mut(move |c| c.value = value);
-    let md = toolset.get_markdown_repr().await;
-    display.with_mut(|d| *d = md);
-    
+    warn!("2");
+    ch.value = value;
+    // let md = toolset.get_markdown_repr().await;
+    // display.with_mut(|d| *d = md);
+    warn!("3");
     let Some(stg) = storage else { return Ok(()) };
-    let new_chat_id = stg.save_chat(&chat()).await?;
-    chat.with_mut(|c| {
-        c.id = Some(new_chat_id);
-    });
+    warn!("4");
+    let new_chat_id = stg.save_chat(&ch).await;
+    warn!("{new_chat_id:?}");
+    let new_chat_id = new_chat_id?;
+    ch.id = Some(new_chat_id);
     
     if id() != Some(new_chat_id) {
         nav.push(crate::Route::ChatEl { id: new_chat_id });
     }
+    chat.with_mut(|c| *c = ch);
+    warn!("saved!");
     
     Ok(())
 }
@@ -342,16 +343,18 @@ where
                     tool_calls: Some(tool_calls.clone()),
                 });
             });
+            save_chat_fn().await?;
         }
 
         // If no tools were called, we're done
         if tool_calls.is_empty() {
-            save_chat_fn().await?;
+            warn!("No tool calls, exit loop");
             return Ok(count);
         }
 
         // Execute the requested tools
         let new_messages = call_tools(tool_calls, host.clone()).await?;
+        warn!("Got {} messages after tool call", new_messages.len());
         chat.with_mut(|c| {
             c.messages.extend(new_messages);
         });
@@ -360,6 +363,7 @@ where
         // Safety check: prevent runaway tool execution
         count += 1;
         if count > 10 {
+            warn!("Count exceeded, exit loop");
             return Ok(count);
         }
     }

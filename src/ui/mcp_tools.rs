@@ -1,3 +1,4 @@
+use dioxus::logger::tracing::warn;
 use dioxus::prelude::*;
 use std::sync::Arc;
 
@@ -11,17 +12,19 @@ pub struct McpToolsProps {
 
 #[component]
 pub fn McpTools(props: McpToolsProps) -> Element {
-    let host = consume_context::<Arc<MCPHost>>();
     let mut tools = use_signal(|| Vec::<ToolDescriptor>::new());
     
     // Load tools when component mounts
     use_effect(move || {
+        let host = consume_context::<Arc<MCPHost>>();
         let host_clone = host.clone();
         spawn(async move {
             let tool_list = host_clone.list_tools().await;
-            tools.set(tool_list);
+        tools.set(tool_list);
         });
     });
+    let tools = tools();
+    let is_empty = tools.is_empty();
 
     rsx! {
         div {
@@ -73,32 +76,25 @@ pub fn McpTools(props: McpToolsProps) -> Element {
                     gap: 1rem;
                 ",
                 
-                {
-                    let tool_list = tools();
-                    if tool_list.is_empty() {
+                if is_empty {
+                    div {
+                        style: "
+                            text-align: center;
+                            color: #666;
+                            padding: 2rem;
+                            font-style: italic;
+                        ",
+                        "No MCP tools available"
+                    }
+                } else {
+                    {tools.into_iter().map(|tool| {
                         rsx! {
-                            div {
-                                style: "
-                                    text-align: center;
-                                    color: #666;
-                                    padding: 2rem;
-                                    font-style: italic;
-                                ",
-                                "No MCP tools available"
+                            ToolCard { 
+                                key: "{tool.server_id}-{tool.tool.name}",
+                                tool: tool 
                             }
                         }
-                    } else {
-                        rsx! {
-                            {tool_list.into_iter().map(|tool| {
-                                rsx! {
-                                    ToolCard { 
-                                        key: "{tool.server_id}-{tool.tool.name}",
-                                        tool: tool 
-                                    }
-                                }
-                            })}
-                        }
-                    }
+                    })}
                 }
             }
         }

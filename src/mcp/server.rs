@@ -17,7 +17,7 @@ pub struct _McpServer {
     #[cfg(not(target_arch = "wasm32"))]
     transport: Mutex<crate::mcp::transport::StdioTransport>,
     pending: Arc<Mutex<HashMap<String, tokio::sync::oneshot::Sender<RpcMessage>>>>,
-    pub tool_cache: Mutex<Vec<McpTool>>,
+    tool_cache: Mutex<Vec<McpTool>>,
     req_timeout: Duration,
     count: Mutex<u32>,
 }
@@ -25,7 +25,8 @@ pub struct _McpServer {
 #[async_trait::async_trait]
 impl MCPServer for _McpServer {
     async fn list_tools(&self) -> Vec<McpTool> {
-        self.tool_cache.lock().await.clone()
+        let tools = self.tool_cache.lock().await.clone();
+        tools
     }
 
     async fn rpc(
@@ -111,6 +112,7 @@ impl _McpServer {
         tokio::spawn(async move {
             let mut rx = rx.expect("rx_lines present when starting reader");
             while let Some(line) = rx.recv().await {
+                // warn!("Line: {line:?}");
                 match line {
                     crate::mcp::transport::InboundLine::Stdout(s) => {
                         let msg = serde_json::from_str::<RpcMessage>(&s);
@@ -125,17 +127,18 @@ impl _McpServer {
                             let id = id.as_str().unwrap_or_else(|| "");
 
                             if let Some(tx) = pending.lock().await.remove(id) {
-                                if let Err(e) = tx.send(msg) {
-                                    eprintln!("Error sending to oneshot: {e:?}");
+                                warn!("Found tx @ id = {id}. Closed? {}", tx.is_closed());
+                                if let Err(_e) = tx.send(msg) {
+                                    warn!("Error sending to oneshot!");
                                 }
                             }
                         } else {
                             // Non-JSON noise from server; ignore or log
-                            debug!(line=%s, "server stdout (non-json)");
+                            warn!("server stdout (non-json): {s}");
                         }
                     }
                     crate::mcp::transport::InboundLine::Stderr(s) => {
-                        warn!(line=%s, "server stderr");
+                        warn!("server stderr: {s}");
                     }
                 }
             }
@@ -149,12 +152,26 @@ impl _McpServer {
                 "protocolVersion": "2025-06-18",
                 "clientInfo": {
                     "name": "mcmcpcp",
-                    "version": "1",
+                    "version": "1.0.0",
                 },
-                "capabilities": {},
+                "capabilities": {
+                    "tools": true,
+                },
             }),
         )
-        .await
+        .await?;
+        
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.transport.lock().await
+                .send_json(&json!({
+                    "jsonrpc":"2.0",
+                    "method":"notifications/initialized"
+                }))
+                .await?;
+        }
+
+        Ok(Value::Null)
     }
 
     pub async fn refresh_tools(&self) -> Result<()> {
@@ -172,8 +189,6 @@ impl _McpServer {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn rpc_call(&self, method: &str, params: Value) -> Result<Value> {
-        use tokio::time::timeout;
-
         let id = {
             let mut l = self.count.lock().await;
             let c = *l;
@@ -183,6 +198,7 @@ impl _McpServer {
         let id = format!("{id}");
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.pending.lock().await.insert(id.clone(), tx);
+        warn!("Put tx @ id = {id}");
 
         let req = RpcRequest {
             jsonrpc: "2.0".into(),
@@ -190,14 +206,31 @@ impl _McpServer {
             method: method.into(),
             params: if params.is_null() { None } else { Some(params) },
         };
+        warn!("1");
         let v = serde_json::to_value(&req)?;
+        warn!("2");
         self.transport.lock().await.send_json(&v).await?;
+        warn!("3");
 
-        let msg = timeout(self.req_timeout, rx)
+        // tokio::time::sleep(Duration::from_secs(1)).await;
+        warn!("4");
+
+        // let msg = rx.await;
+
+        let msg = tokio::time::timeout(self.req_timeout, rx)
             .await
-            .map_err(|_| anyhow!("rpc {} timed out", method))?
-            .map_err(|_| anyhow!("rpc {} channel closed", method))?;
+            .map_err(|e| {
+                warn!("Error after {e:?} elapsed");
+                anyhow!("rpc {} timed out", method)
+            })?
+            .map_err(|e| {
+                warn!("Error while waiting for rx: {e:?}");
+                anyhow!("rpc {} channel closed", method)
+            });
 
+        warn!("5");
+        let msg = msg?;
+        warn!("6");
         match msg {
             RpcMessage::Ok(ok) => Ok(ok.result),
             RpcMessage::Err(e) => Err(anyhow!(
@@ -206,7 +239,10 @@ impl _McpServer {
                 e.error.message,
                 e.error.data
             )),
-            RpcMessage::Req(_r) => Err(anyhow!("unexpected request from server during call")),
+            RpcMessage::Req(_r) => {
+                warn!("Got RPC request!!!!");
+                Err(anyhow!("unexpected request from server during call"))
+            },
         }
     }
 }

@@ -58,10 +58,15 @@ impl LlmClient {
         let res = self
             .client
             .get(format!("{}/models", &self.api_url))
-            .bearer_auth(&self.api_key)
+            .bearer_auth(format!("Bearer {}", &self.api_key))
             .header("Content-Type", "application/json")
             .send()
-            .await?;
+            .await;
+
+        if let Err(e) = &res {
+            warn!("{e:?}");
+        }
+        let res = res?;
             
         // Check for HTTP error status and provide detailed error information
         if !res.status().is_success() {
