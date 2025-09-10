@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 use std::sync::Arc;
 
 use serde_json::Value;

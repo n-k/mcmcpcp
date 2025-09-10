@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 //! Message group component for displaying assistant and tool messages as unified entities.
 //!
 //! This module provides functionality to group assistant messages with their corresponding
@@ -24,32 +26,12 @@ pub struct MessageGroup {
 impl MessageGroup {
     /// Creates a new message group from an assistant message
     pub fn new(assistant_message: Message) -> Self {
-        // Generate a stable ID based on message content hash
-        let group_id = match &assistant_message {
-            Message::Assistant { content, .. } => {
-                use std::collections::hash_map::DefaultHasher;
-                use std::hash::{Hash, Hasher};
-                
-                let mut hasher = DefaultHasher::new();
-                content.hash(&mut hasher);
-                // Add a simple representation of tool calls to make the hash more unique
-                if let Message::Assistant { tool_calls, .. } = &assistant_message {
-                    if let Some(calls) = tool_calls {
-                        calls.len().hash(&mut hasher);
-                        for call in calls {
-                            if let Some(function) = &call.function {
-                                if let Some(name) = &function.name {
-                                    name.hash(&mut hasher);
-                                }
-                            }
-                        }
-                    }
-                }
-                format!("group_{}", hasher.finish())
-            }
-            _ => format!("group_{}", uuid::Uuid::new_v4().to_string()),
-        };
-        
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        assistant_message.hash(&mut hasher);
+        let group_id = format!("group_{}", hasher.finish());
         Self {
             assistant_message,
             tool_messages: Vec::new(),

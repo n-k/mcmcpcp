@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 use std::rc::Rc;
 
 use dioxus::prelude::*;

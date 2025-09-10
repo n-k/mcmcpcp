@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

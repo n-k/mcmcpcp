@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 use async_trait::async_trait;
 
 use crate::{AppSettings, app_settings::Chat};

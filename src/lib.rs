@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 //! MCMCPCP (My Cool MCP Command Post) - A chat interface for MCP-enabled LLM interactions.
 //!
 //! This library provides a complete chat application built with Dioxus that allows users to:

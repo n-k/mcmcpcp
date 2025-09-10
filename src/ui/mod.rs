@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 //! User interface components for MCMCPCP.
 //!
 //! This module contains all the UI components that make up the application interface,

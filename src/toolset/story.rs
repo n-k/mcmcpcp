@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::bail;

@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 use dioxus::prelude::*;
 
 #[derive(Props, Clone, PartialEq)]
@@ -44,7 +46,7 @@ pub fn Slideout(mut props: SlideoutProps) -> Element {
                     position: fixed;
                     top: 0;
                     right: 0;
-                    width: 500px;
+                    max-width: 80%;
                     height: 100%;
                     background: #fff;
                     box-shadow: -2px 0 6px rgba(0,0,0,.2);

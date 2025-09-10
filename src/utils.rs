@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 //! Utility functions for handling tool calls and message conversion.
 //!
 //! This module provides helper functions for converting between MCP tool descriptors

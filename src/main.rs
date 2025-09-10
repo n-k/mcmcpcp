@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 //! Main entry point for the MCMCPCP (My Cool MCP Command Post) application.
 //!
 //! This application provides a chat interface for interacting with Language Learning Models (LLMs)

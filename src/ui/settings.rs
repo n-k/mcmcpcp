@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 use dioxus::{logger::tracing::warn, prelude::*};
 
 use crate::{

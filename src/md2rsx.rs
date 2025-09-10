@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 //! Markdown to RSX conversion utilities for MCMCPCP.
 //!
 //! This module provides functionality to convert Markdown text into Dioxus RSX elements,

@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 //! Main chat interface component for MCMCPCP.
 //!
 //! This module implements the primary chat interface where users interact with LLMs.

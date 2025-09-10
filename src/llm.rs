@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 //! Language Learning Model (LLM) client implementation for MCMCPCP.
 //!
 //! This module provides a client for communicating with OpenAI-compatible LLM APIs,
@@ -275,7 +277,7 @@ pub struct Model {
 ///
 /// Messages have different roles (system, user, assistant, tool) and contain
 /// content appropriate for each role. This follows the OpenAI API message format.
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Hash)]
 #[serde(tag = "role", rename_all = "lowercase")]
 pub enum Message {
     /// System message that sets context and instructions for the LLM
@@ -306,7 +308,7 @@ pub enum Message {
 /// Represents different types of content that can be included in a user message.
 ///
 /// Supports text content and image URLs for multimodal interactions.
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Hash)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentPart {
     /// Plain text content
@@ -324,7 +326,7 @@ pub enum ContentPart {
 /// Represents an image URL for multimodal content.
 ///
 /// Used when including images in user messages for vision-capable models.
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Hash)]
 pub struct ImageUrl {
     /// URL pointing to the image resource
     pub url: String,
@@ -407,7 +409,7 @@ pub struct Delta {
 ///
 /// Tool calls may be streamed in parts, with the function name and arguments
 /// being built up over multiple deltas.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash)]
 pub struct ToolCallDelta {
     /// Unique identifier for this tool call
     pub id: Option<String>,
@@ -422,7 +424,7 @@ pub struct ToolCallDelta {
 ///
 /// The function name and arguments may be streamed separately and need to be
 /// accumulated to form the complete function call.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash)]
 pub struct FunctionDelta {
     /// Function name (if this is the first delta for this call)
     pub name: Option<String>,

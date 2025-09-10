@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 use anyhow::anyhow;
 use async_trait::async_trait;
 use idb::{Database, DatabaseEvent, Factory, KeyPath, ObjectStoreParams, TransactionMode};

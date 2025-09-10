@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 //! MCP Host implementation for managing and communicating with MCP servers.
 //!
 //! This module provides the main Host struct that manages multiple MCP servers,

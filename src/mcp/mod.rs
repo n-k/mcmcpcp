@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 //! Model Context Protocol (MCP) implementation for MCMCPCP.
 //!
 //! This module provides a complete implementation of the Model Context Protocol,

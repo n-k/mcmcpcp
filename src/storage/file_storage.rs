@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 use anyhow::{Result, bail};
 use dioxus::logger::tracing::warn;
 use std::path::PathBuf;

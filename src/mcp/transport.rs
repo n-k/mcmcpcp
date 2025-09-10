@@ -1,3 +1,5 @@
+// Copyright © 2025 Nipun Kumar
+
 use anyhow::{Context, Result};
 use serde_json::Value;
 use tokio::process::ChildStdout;
