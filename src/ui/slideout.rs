@@ -1,6 +1,6 @@
 // Copyright © 2025 Nipun Kumar
 
-use dioxus::{logger::tracing::warn, prelude::*};
+use dioxus::prelude::*;
 
 #[derive(Props, Clone, PartialEq, Debug)]
 pub struct SlideoutProps {
