@@ -17,8 +17,11 @@ percent-encoding = "2.3"
 pulldown-cmark = { version = "0.13", default-features = false }
 html2md = "0.2"
 
+[target.'cfg(target_os = "android")'.dependencies]
+openssl = { version = "0.10", features = ["vendored"] }
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-# dioxus-native = { version = "0.7.0-rc.0" }
+dioxus-native = { version = "0.7.0-rc.0" }
 tokio = { version = "1", default-features = false, features = ["full"] }
 directories-next = "2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }

@@ -113,7 +113,6 @@ fn ToolCard(props: ToolCardProps) -> Element {
                 border-radius: 8px;
                 padding: 1rem;
                 background: #f9f9f9;
-                transition: all 0.2s ease;
             ",
 
             // Tool header

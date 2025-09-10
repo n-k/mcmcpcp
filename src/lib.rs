@@ -141,13 +141,15 @@ fn Layout() -> Element {
     let nav = navigator();
 
     rsx! {
-        div { style: "
-            position: fixed;
-            top: 6rem;
-            left: 1rem;
-            z-index: 9;
-            display: flex;
-            flex-direction: column;
+        div {
+            class: "tool-icons", 
+            style: "
+                position: fixed;
+                top: 6rem;
+                left: 1rem;
+                z-index: 9;
+                display: flex;
+                flex-direction: column;
             ",
             button {
                 onclick: move |_e: Event<MouseData>| {

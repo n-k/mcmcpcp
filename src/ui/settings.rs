@@ -264,9 +264,9 @@ fn ServerItem(
 ) -> Element {
     let on_toggle = {
         let server = server.clone();
-        move |_| {
+        move |e: Event<FormData>| {
             let mut updated_server = server.clone();
-            updated_server.enabled = !updated_server.enabled;
+            updated_server.enabled = e.checked();
             on_save((index, updated_server));
         }
     };
@@ -291,8 +291,6 @@ fn ServerItem(
 
         let status_color = if server.enabled { "#28a745" } else { "#6c757d" };
         let status_text = if server.enabled { "Enabled" } else { "Disabled" };
-        let toggle_bg = if server.enabled { "#28a745" } else { "#ccc" };
-        let toggle_transform = if server.enabled { "translateX(20px)" } else { "translateX(0)" };
 
         rsx! {
             div { style: format!("
@@ -346,33 +344,15 @@ fn ServerItem(
                                 align-items: center;
                                 gap: 0.5rem;
                                 margin-bottom: 0.5rem;
+                                border: 1px solid silver;
                             ",
                             span { style: "font-size: 0.8rem; color: #666;", "Enable:" }
-                            div {
-                                style: "
-                                    width: 44px;
-                                    height: 24px;
-                                    background: {toggle_bg};
-                                    border-radius: 12px;
-                                    position: relative;
-                                    cursor: pointer;
-                                    transition: background 0.3s;
-                                ",
-                                onclick: on_toggle,
-                                div {
-                                    style: "
-                                        width: 20px;
-                                        height: 20px;
-                                        background: white;
-                                        border-radius: 50%;
-                                        position: absolute;
-                                        top: 2px;
-                                        left: 2px;
-                                        transform: {toggle_transform};
-                                        transition: transform 0.3s;
-                                        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                                    "
-                                }
+                            input {
+                                r#type: "checkbox",
+                                checked: server.enabled,
+                                oninput: move |_e| {
+                                    on_toggle(_e);
+                                },
                             }
                         }
                         // Action buttons

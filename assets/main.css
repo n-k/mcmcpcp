@@ -1,4 +1,19 @@
-/* App-wide styling */
+/* Theme color variables */
+:root {
+    --theme-primary: #8b9dc3;
+    --theme-secondary: #a8b5c8;
+    --theme-accent: #c8d6e5;
+    --theme-warm: #ddbea9;
+    --theme-cool: #b7c4cf;
+    --theme-text: #495057;
+    --theme-text-light: #6c757d;
+    --theme-bg: #f8f9fa;
+    --theme-surface: #ffffff;
+    --gap: 1rem;
+    --right-width: 320px;
+    --breakpoint: 720px;
+}
+
 html, body {
     height: 100%;
     margin: 0;
@@ -17,22 +32,6 @@ body {
     background-attachment: fixed;
 }
 
-/* Theme color variables */
-:root {
-    --theme-primary: #8b9dc3;
-    --theme-secondary: #a8b5c8;
-    --theme-accent: #c8d6e5;
-    --theme-warm: #ddbea9;
-    --theme-cool: #b7c4cf;
-    --theme-text: #495057;
-    --theme-text-light: #6c757d;
-    --theme-bg: #f8f9fa;
-    --theme-surface: #ffffff;
-    --gap: 1rem;
-    --right-width: 320px;
-    --breakpoint: 720px;
-}
-
 .panels {
     display: flex;
     gap: var(--gap);
@@ -49,7 +48,6 @@ textarea {
     border-radius: 12px;
     padding: 12px 16px;
     box-shadow: 0 4px 12px rgba(139, 157, 195, 0.1);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     font-weight: 500;
 }
 
@@ -113,10 +111,11 @@ pre code::before {
     flex-direction: column;
 }
 
+.tool-icons button {
+    padding: 0.5em;
+}
+
 .content {
-    /* flex-grow: 1; */
-    /* display: flex;
-    flex-direction: row; */
     overflow: hidden;
     height: 100%;
     width: 100%;
@@ -183,7 +182,6 @@ pre code::before {
     width: 100%;
     cursor: pointer;
     padding: 12px 16px;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     border-radius: 8px;
     margin: 4px;
     font-weight: 500;
@@ -214,7 +212,6 @@ pre code::before {
     border-radius: 16px;
     margin: 1.5em;
     box-shadow: 0 4px 12px rgba(139, 157, 195, 0.1);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     font-weight: 500;
 }
@@ -325,7 +322,6 @@ pre code::before {
 /* SVG styling for consistent mellow appearance */
 svg {
     color: var(--theme-text);
-    transition: color 0.3s ease, opacity 0.3s ease;
 }
 
 svg:hover {

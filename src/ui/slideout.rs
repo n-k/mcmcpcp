@@ -1,8 +1,8 @@
 // Copyright © 2025 Nipun Kumar
 
-use dioxus::prelude::*;
+use dioxus::{logger::tracing::warn, prelude::*};
 
-#[derive(Props, Clone, PartialEq)]
+#[derive(Props, Clone, PartialEq, Debug)]
 pub struct SlideoutProps {
     pub open: Signal<bool>,
     pub children: Element,
@@ -10,17 +10,9 @@ pub struct SlideoutProps {
 
 #[component]
 pub fn Slideout(mut props: SlideoutProps) -> Element {
-    let transform = if *props.open.read() {
-        "transform: translateX(0);"
-    } else {
-        "transform: translateX(100%);"
-    };
-
-    let visibility = if *props.open.read() {
-        "visibility: visible; opacity: 1;"
-    } else {
-        "visibility: hidden; opacity: 0;"
-    };
+    if !*props.open.read() {
+        return rsx! {};
+    }
 
     rsx! {
         // Backdrop overlay that closes the slideout when clicked
@@ -33,8 +25,6 @@ pub fn Slideout(mut props: SlideoutProps) -> Element {
                 height: 100%;
                 background: rgba(0, 0, 0, 0.3);
                 z-index: 998;
-                {visibility}
-                transition: opacity 0.3s ease, visibility 0.3s ease;
             ",
             onclick: move |_| {
                 props.open.set(false);
@@ -49,9 +39,6 @@ pub fn Slideout(mut props: SlideoutProps) -> Element {
                     max-width: 80%;
                     height: 100%;
                     background: #fff;
-                    box-shadow: -2px 0 6px rgba(0,0,0,.2);
-                    {transform}
-                    transition: transform 0.3s ease;
                     z-index: 999;
                 ",
                 onclick: move |e: Event<MouseData>| {
