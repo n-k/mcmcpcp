@@ -42,24 +42,21 @@ use crate::storage::Storage;
 use crate::storage::get_storage;
 use crate::ui::chat_log::ChatLog;
 
+/// Main CSS stylesheet for application styling
+const MAIN_CSS: Asset = asset!("/assets/main.css");
+
 /// Application favicon - SVG format for scalability
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 // Chat log icon
-const NEW_CHAT_ICON: Asset = asset!("/assets/new_chat.svg");
+const NEW_CHAT_ICON: Asset = asset!("/assets/new_chat.png");
 // Chat log icon
-const NEW_STORY_ICON: Asset = asset!("/assets/new_story.svg");
+const NEW_STORY_ICON: Asset = asset!("/assets/new_story.png");
 // Chat log icon
-// const NEW_PPT_ICON: Asset = asset!("/assets/new_presentation.svg");
-/// Main CSS stylesheet for application styling
-const MAIN_CSS: Asset = asset!("/assets/main.css");
-// Home icon
-// const HOME_ICON: Asset = asset!("/assets/home.svg");
-// Chat log icon
-const CHATS_ICON: Asset = asset!("/assets/chat_list.svg");
+const CHATS_ICON: Asset = asset!("/assets/chat_list.png");
 // Settings icon
-const SETTINGS_ICON: Asset = asset!("/assets/settings.svg");
+const SETTINGS_ICON: Asset = asset!("/assets/settings.png");
 // Tools icon
-const TOOLS_ICON: Asset = asset!("/assets/tools.svg");
+const TOOLS_ICON: Asset = asset!("/assets/tools.png");
 
 /// Root application component that sets up routing and global resources.
 ///
@@ -138,51 +135,72 @@ enum Route {
 fn Layout() -> Element {
     let mut slideout = use_signal(|| false);
     let mut slideout_content = use_signal(|| SlideoutContent::ChatLog);
-    let nav = navigator();
 
     rsx! {
         div {
             class: "tool-icons", 
             style: "
                 position: fixed;
-                top: 6rem;
-                left: 1rem;
+                top: 2px;
+                left: 2px;
                 z-index: 9;
+                width: calc(100% - 3em);
+                padding-left: 1.5em;
+                padding-right: 1.5em;
                 display: flex;
-                flex-direction: column;
+                flex-direction: row;
             ",
-            button {
-                onclick: move |_e: Event<MouseData>| {
-                    nav.replace(crate::Route::NewChat {});
-                },
+            Link {
+                to: crate::Route::NewChat {},
                 img { src: NEW_CHAT_ICON }
-            }
-            button {
-                onclick: move |_e: Event<MouseData>| {
-                    nav.replace(crate::Route::NewStory {});
-                },
+                "New Chat",
+            },
+            // button {
+            //     onclick: move |_e: Event<MouseData>| {
+            //         nav.replace(crate::Route::NewChat {});
+            //     },
+            //     img { src: NEW_CHAT_ICON }
+            // }
+            Link {
+                to: crate::Route::NewStory {},
                 img { src: NEW_STORY_ICON }
-            }
-            button {
-                onclick: move |_e: Event<MouseData>| {
-                    slideout_content.set(SlideoutContent::Settings);
-                    slideout.set(true);
-                },
-                img { src: SETTINGS_ICON }
-            }
-            button {
+                "New Article",
+            },
+            // button {
+            //     onclick: move |_e: Event<MouseData>| {
+            //         nav.replace(crate::Route::NewStory {});
+            //     },
+            //     img { src: NEW_STORY_ICON }
+            // }
+            // Link {
+            //     to: crate::Route::NewStory {},
+            //     img { src: CHATS_ICON }
+            //     "Your Chats",
+            // },
+            div {style: "flex-grow: 1;", ""}
+            span {
                 onclick: move |_e: Event<MouseData>| {
                     slideout_content.set(SlideoutContent::ChatLog);
                     slideout.toggle();
                 },
-                img { src: CHATS_ICON }
+                img { src: CHATS_ICON },
+                "Your Chats",
             }
-            button {
+            span {
+                onclick: move |_e: Event<MouseData>| {
+                    slideout_content.set(SlideoutContent::Settings);
+                    slideout.set(true);
+                },
+                img { src: SETTINGS_ICON },
+                "Settings",
+            }
+            span {
                 onclick: move |_e: Event<MouseData>| {
                     slideout_content.set(SlideoutContent::McpTools);
                     slideout.set(true);
                 },
-                img { src: TOOLS_ICON }
+                img { src: TOOLS_ICON },
+                "Tools"
             }
         }
         Slideout {

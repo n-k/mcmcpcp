@@ -43,7 +43,13 @@ pub fn Settings(props: SettingsProps) -> Element {
                 model: None,
             },
             last_chat_id: None,
-            mcp_servers: None,
+            mcp_servers: Some(vec![ServerSpec {
+                id: "playwright".into(),
+                cmd: "npx".into(),
+                args: vec!["@playwright/mcp@latest".into(), "--headless".into()],
+                env: Default::default(),
+                enabled: false,
+            }]),
         });
         provider.set(s.provider.clone());
         s
@@ -290,7 +296,11 @@ fn ServerItem(
             .join(", ");
 
         let status_color = if server.enabled { "#28a745" } else { "#6c757d" };
-        let status_text = if server.enabled { "Enabled" } else { "Disabled" };
+        let status_text = if server.enabled {
+            "Enabled"
+        } else {
+            "Disabled"
+        };
 
         rsx! {
             div { style: format!("
@@ -305,7 +315,7 @@ fn ServerItem(
                     div { style: "flex-grow: 1;",
                         div { style: "display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;",
                             div { style: "font-weight: bold;", "{server.id}" }
-                            div { 
+                            div {
                                 style: "
                                     font-size: 0.7rem;
                                     padding: 0.125rem 0.375rem;
@@ -338,7 +348,7 @@ fn ServerItem(
                         gap: 0.5rem;
                         ",
                         // Toggle switch
-                        div { 
+                        div {
                             style: "
                                 display: flex;
                                 align-items: center;
@@ -791,17 +801,21 @@ fn OpenRouterSettings(
 ) -> Element {
     let mut filter = use_signal(|| "".to_string());
     let mut available_models = use_signal(Vec::<String>::new);
+    let mut auth_url = use_signal(|| "".to_string());
 
-    let handle_key_change = move |e: Event<FormData>| async move {
+    let set_key = move |key: String| async move {
         let model = if let ProviderSettings::OpenRouter { model, .. } = ps() {
             model
         } else {
             None
         };
         onchange(ProviderSettings::OpenRouter {
-            api_key: e.value(),
+            api_key: key,
             model,
         });
+    };
+    let handle_key_change = move |e: Event<FormData>| async move {
+        set_key(e.value()).await;
     };
     let set_model = move |model: Option<String>| async move {
         let api_key = if let ProviderSettings::OpenRouter { api_key, .. } = ps() {
@@ -833,16 +847,134 @@ fn OpenRouterSettings(
         }
     };
 
-    let (api_key, model) = if let ProviderSettings::OpenRouter { api_key, model } = ps() {
-        (api_key, model)
-    } else {
-        ("".to_string(), None)
+    #[cfg(not(target_arch = "wasm32"))]
+    let start_pkce = move || async move {
+        use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+        use rand::Rng;
+        use rand::distr::Alphanumeric;
+        use sha2::{Digest, Sha256};
+        use tokio::net::TcpListener;
+        // use std::net::TcpListener;
+        // use std::io::{Read, Write};
+        use urlencoding::encode;
+
+        // auth_url.set("1".to_string());
+        // ---- Step 1: PKCE values ----
+        let code_verifier: String = rand::rng()
+            .sample_iter(&Alphanumeric)
+            .take(64)
+            .map(char::from)
+            .collect();
+
+        let code_challenge = {
+            let digest = Sha256::digest(code_verifier.as_bytes());
+            URL_SAFE_NO_PAD.encode(digest)
+        };
+
+        let listener = TcpListener::bind("127.0.0.1:3000").await.unwrap(); // OS picks port
+        let port = listener.local_addr().unwrap().port();
+        let redirect_uri = format!("http://127.0.0.1:{}/callback", port);
+
+        // ---- Step 2: Redirect user to OpenRouter auth ----
+        let or_auth_url = format!(
+            "https://openrouter.ai/auth?callback_url={}&code_challenge={}&code_challenge_method=S256",
+            encode(&redirect_uri),
+            code_challenge
+        );
+        println!("Open this URL in your browser:\n\n{}\n", or_auth_url);
+
+        auth_url.set(or_auth_url.clone());
+
+        spawn(async move {
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+            println!("Waiting for OAuth callback on {}", redirect_uri);
+
+            // ---- Step 3: Wait for redirect with auth code ----
+            let (mut stream, _) = listener.accept().await.unwrap(); // Accept one connection
+            let mut buffer = [0; 1024];
+            stream.read(&mut buffer).await.unwrap();
+
+            let request = String::from_utf8_lossy(&buffer);
+            eprintln!("Request: {request}");
+            let code = request
+                .split("code=")
+                .nth(1)
+                .and_then(|s| s.split_whitespace().next())
+                .and_then(|s| s.split('&').next())
+                .unwrap()
+                .to_string();
+
+            // Send a simple response to the browser
+            let response =
+                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nYou can close this tab now.";
+            stream.write_all(response.as_bytes()).await.unwrap();
+
+            println!("Got authorization code: {}", code);
+
+            // ---- Step 4: Exchange code for tokens ----
+            let token_url = "https://openrouter.ai/api/v1/auth/keys";
+
+            let client = reqwest::Client::new();
+            let res = client
+                .post(token_url)
+                .json(&serde_json::json!({
+                    "code": &code,
+                    "code_verifier": &code_verifier,
+                    "code_challenge_method": "S256",
+                }))
+                .send()
+                .await
+                .unwrap();
+            auth_url.set("".to_string());
+            if res.status().is_success() {
+                let j: serde_json::Value = res.json().await.unwrap();
+                println!("{j:?}");
+                let key = j
+                    .get("key")
+                    .map(|v| v.as_str())
+                    .flatten()
+                    .map(|s| s.to_string());
+                if let Some(key) = key {
+                    set_key(key).await;
+                }
+            } else {
+                let text = res.text().await.unwrap();
+                println!("Token response: {}", text);
+            }
+        });
+
+        anyhow::Ok(())
     };
+
+    #[cfg(target_arch = "wasm32")]
+    let start_pkce = move || async move {};
 
     let filtered_models: Vec<String> = available_models()
         .into_iter()
         .filter(|s| s.to_lowercase().contains(&*filter.read()))
         .collect();
+    let auth_url = auth_url();
+    let has_auth_url = !auth_url.is_empty();
+
+    #[cfg(not(target_arch = "wasm32"))]
+    let start_pkce_button = rsx! {
+        button {
+            disabled: has_auth_url,
+            onclick: move |_| async move {
+                let _ = start_pkce().await;
+            },
+            "Login using Openrouter"
+        }
+    };
+    #[cfg(target_arch = "wasm32")]
+    let start_pkce_button = rsx! {};
+
+    let (api_key, model) = if let ProviderSettings::OpenRouter { api_key, model } = ps() {
+        (api_key, model)
+    } else {
+        ("".to_string(), None)
+    };
 
     rsx! {
         div { style: "
@@ -851,10 +983,22 @@ fn OpenRouterSettings(
             display: flex;
             flex-direction: column;
             ",
-            // label { style: "margin-top: 1em;", "API endpoint" }
-            // input { value: api_url, oninput: handle_url_change }
             label { style: "margin-top: 1em;", "API Key" }
             input { value: api_key, oninput: handle_key_change }
+            p {
+                {start_pkce_button}
+            }
+            if has_auth_url {
+                Link {
+                    to: auth_url.clone(),
+                    "Open Openrouter"
+                }
+                "Or copy and paste this URL into your browser"
+                textarea {
+                    disabled: true,
+                    value: "{auth_url}",
+                }
+            }
             label { style: "margin-top: 1em;",
                 "Select Model"
                 button {

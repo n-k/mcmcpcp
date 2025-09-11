@@ -124,38 +124,46 @@ pub fn MessageGroupEl(props: MessageGroupProps) -> Element {
     // Render tool messages if any
     let tool_content = if !group.tool_messages.is_empty() {
         rsx! {
-            div { class: "tool-results",
-                style: "margin-top: 1em; padding-top: 1em; border-top: 1px solid rgba(255, 255, 255, 0.2);",
-                for tool_msg in &group.tool_messages {
-                    match tool_msg {
-                        Message::Tool { content, .. } => {
-                            let el = crate::md2rsx::markdown_to_rsx(content)?;
-                            rsx! {
-                                div { class: "tool-result",
-                                    style: "
-                                        background: rgba(255, 255, 255, 0.1);
-                                        border: 1px solid rgba(255, 255, 255, 0.1);
-                                        border-radius: 8px;
-                                        margin-bottom: 0.75em;
-                                        padding: 0.75em;
-                                    ",
-                                    div { 
-                                        style: "
-                                            font-size: 0.9em;
-                                            font-weight: 600;
-                                            margin-bottom: 0.5em;
-                                            opacity: 0.9;
-                                            display: flex;
-                                            align-items: center;
-                                            gap: 0.5em;
-                                        ",
-                                        "🔧 Tool Result"
+            div { 
+                class: "message-group-content",
+                style: "display: absolute;",
+                Collapsible {
+                    c: true,
+                    div { class: "tool-results",
+                        style: "margin-top: 1em; padding-top: 1em; border-top: 1px solid rgba(255, 255, 255, 0.2);",
+                        for tool_msg in &group.tool_messages {
+                            match tool_msg {
+                                Message::Tool { content, .. } => {
+                                    let el = crate::md2rsx::markdown_to_rsx(content)?;
+                                    rsx! {
+                                        div { class: "tool-result",
+                                            style: "
+                                                background: rgba(255, 255, 255, 0.1);
+                                                border: 1px solid rgba(255, 255, 255, 0.1);
+                                                border-radius: 8px;
+                                                margin-bottom: 0.75em;
+                                                padding: 0.75em;
+                                            ",
+                                            div { 
+                                                style: "
+                                                    font-size: 0.9em;
+                                                    font-weight: 600;
+                                                    margin-bottom: 0.5em;
+                                                    opacity: 0.9;
+                                                    display: flex;
+                                                    align-items: center;
+                                                    gap: 0.5em;
+                                                ",
+                                                "🔧 Tool Result",
+                                                {el}
+                                            }
+                                            // Collapsible { c: true, {el} }
+                                        }
                                     }
-                                    Collapsible { c: true, {el} }
                                 }
+                                _ => rsx! { div { "Invalid tool message" } }
                             }
                         }
-                        _ => rsx! { div { "Invalid tool message" } }
                     }
                 }
             }
@@ -207,8 +215,7 @@ pub fn MessageGroupEl(props: MessageGroupProps) -> Element {
                     
                     // Assistant message content
                     {assistant_content}
-                    
-                    // Tool results (if any)
+
                     {tool_content}
                 }
             }

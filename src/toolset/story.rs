@@ -97,24 +97,6 @@ impl Toolset for StoryWriter {
     }
 
     async fn get_markdown_repr(&self) -> Option<String> {
-        // let mut map = self.host.servers.write().await;
-        // let Some(server) = map.get_mut("creative_writer") else {
-        //     return None;
-        // };
-        // let v = server
-        //     .rpc(
-        //         "tools/call",
-        //         json!({
-        //             "name": "export_story",
-        //             "arguments": {
-        //                 "format": "markdown",
-        //             },
-        //         })
-        //     ).await
-        //     .unwrap_or_else(|e| {
-        //         warn!("Error getting state from MCP server: {e:?}");
-        //         json!({})
-        //     });
         let tr = self
             .host
             .tool_call(
@@ -1829,7 +1811,12 @@ impl CreativeWriterMcpServer {
     }
 
     fn export_markdown(&self) -> ToolResult {
-        let mut export = format!("# {}\n\n", self.story.metadata.title);
+        let title = if self.story.metadata.title.is_empty() {
+            "Untitled"
+        } else {
+            &self.story.metadata.title
+        };
+        let mut export = format!("# {}\n\n", title);
         export.push_str(&format!("**Genre:** {}\n", self.story.metadata.genre));
         export.push_str(&format!(
             "**Target Audience:** {}\n",

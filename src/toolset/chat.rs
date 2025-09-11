@@ -22,7 +22,7 @@ impl Toolset for ChatTools {
     fn get_system_prompt(&self) -> String {
         "You are a helpful assistant. 
 You have access to tools which you can call to help the user in the user's task.
-====
+
 TOOL USE
 
 You have access to a set of tools that are executed upon the user's approval.

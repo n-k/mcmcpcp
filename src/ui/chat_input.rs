@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 
-const SEND_ICON: Asset = asset!("/assets/send.svg");
+const SEND_ICON: Asset = asset!("/assets/send.png");
 
 #[component]
 pub fn ChatInput(disabled: bool, on_send: Callback<String, ()>) -> Element {
@@ -46,8 +46,18 @@ pub fn ChatInput(disabled: bool, on_send: Callback<String, ()>) -> Element {
                 },
                 value: text,
             }
-            button { onclick: send, disabled,
-                img { src: SEND_ICON }
+            button {
+                style: "
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 0.5em;
+                ", 
+                onclick: send, disabled,
+                img {
+                    style: "",  
+                    src: SEND_ICON 
+                }
             }
         }
     }
